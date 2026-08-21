@@ -275,6 +275,28 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-run-detail">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3 id="run-detail-title">ラン詳細</h3><button class="modal-close" data-close>✕</button></div>
+    <div id="run-detail-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-all-runs">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>すべてのラン</h3><button class="modal-close" data-close>✕</button></div>
+    <div class="chip-row" id="run-type-filter-chips">
+      <button class="chip-btn active" data-type="all">すべて</button>
+      <button class="chip-btn" data-type="easy">Easy</button>
+      <button class="chip-btn" data-type="interval">Interval</button>
+      <button class="chip-btn" data-type="tempo">Tempo</button>
+      <button class="chip-btn" data-type="long">Long</button>
+      <button class="chip-btn" data-type="recovery">Recovery</button>
+    </div>
+    <div id="all-runs-list" style="display:flex; flex-direction:column; gap:4px;"></div>
+  </div>
+</div>
+
 <div class="app">
   <main id="content">
 
@@ -322,7 +344,7 @@
           <div class="rec-num">02</div>
           <div class="rec-body">
             <div class="rec-title">全身自宅筋トレ 30分</div>
-            <div class="rec-reason">直近7日間の筋トレ回数が少なめです。</div>
+            <div class="rec-reason" id="rec-strength-full-reason">直近7日間の筋トレ回数が少なめです。</div>
           </div>
           <div class="rec-check">✓</div>
         </div>
@@ -338,7 +360,7 @@
           <div class="rec-num">04</div>
           <div class="rec-body">
             <div class="rec-title">自宅筋トレ 10分<span class="badge time">時短</span></div>
-            <div class="rec-reason">時間がない日でも、筋トレ種目を1〜2つだけ回して運動バランスを維持できます。</div>
+            <div class="rec-reason" id="rec-strength-quick-reason">時間がない日でも、筋トレ種目を1〜2つだけ回して運動バランスを維持できます。</div>
           </div>
           <div class="rec-check">✓</div>
         </div>
@@ -417,6 +439,12 @@
         <div class="nrow"><span class="n">ビタミンB群</span><span class="s good">○</span></div>
         <div class="unknown-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。</div>
       </div>
+
+      <div class="nutri" id="meal-log-section">
+        <h2>食事ログ</h2>
+        <div class="nutri-sub" id="meal-log-count">まだ記録がありません</div>
+        <div id="meal-log-list"></div>
+      </div>
     </section>
 
     <!-- ============ 変化 ============ -->
@@ -477,7 +505,9 @@
       </div>
 
       <div class="panel" id="panel-waist"><div class="soon">腹囲の推移・目標設定は近日対応予定です。</div></div>
-      <div class="panel" id="panel-muscle"><div class="soon">筋肉量の推移・目標設定は近日対応予定です。</div></div>
+      <div class="panel" id="panel-muscle">
+        <div id="muscle-log-container" style="padding:0 20px;"></div>
+      </div>
 
       <div class="panel" id="panel-run">
         <div class="hero">
@@ -508,17 +538,18 @@
           <div class="chart-note" style="border-top:none; padding-top:8px;">同程度の心拍負荷で35秒/km速くなっています。有酸素能力が改善している可能性があります。</div>
         </div>
         <div class="stat-grid">
-          <div class="sitem"><div class="v">42km</div><div class="l">月間走行距離</div></div>
-          <div class="sitem"><div class="v">6:48</div><div class="l">Easy Run平均</div></div>
-          <div class="sitem"><div class="v">週2.4回</div><div class="l">走行頻度</div></div>
+          <div class="sitem"><div class="v" id="stat-monthly-distance">42km</div><div class="l">月間走行距離</div></div>
+          <div class="sitem"><div class="v" id="stat-easy-pace">6:48</div><div class="l">Easy Run平均</div></div>
+          <div class="sitem"><div class="v" id="stat-run-freq">週2.4回</div><div class="l">走行頻度</div></div>
         </div>
         <div class="chart-card">
-          <div class="chart-head"><h2>ラン履歴</h2><span>直近5件</span></div>
-          <div style="display:flex; flex-direction:column; gap:12px;" id="run-history-list">
+          <div class="chart-head"><h2>ラン履歴</h2><span id="run-history-count">直近5件</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="run-history-list">
             <div class="logrow"><span class="d">8/20</span><span class="m">Easy Run 5.02km</span><span class="v">6:15/km・154bpm</span></div>
             <div class="logrow" style="opacity:0.7;"><span class="d">8/17</span><span class="m">Interval 6×2min</span><span class="v">4:58/km・168bpm</span></div>
             <div class="logrow" style="opacity:0.5;"><span class="d">8/14</span><span class="m">Easy Run 5.10km</span><span class="v">6:28/km・151bpm</span></div>
           </div>
+          <button class="modal-submit" id="show-all-runs" style="background:var(--card); color:var(--good); border:1px solid var(--good-dim); margin-top:14px; display:none;">すべてのランを見る</button>
         </div>
       </div>
     </section>
@@ -798,16 +829,52 @@
       activityEl.textContent = totalRecent >= 4 ? '多い' : totalRecent >= 2 ? '普通' : totalRecent >= 1 ? '少なめ' : '低い';
     }
 
-    // ---- ラン履歴（直近5件）----
-    const runs = sorted.filter(w => isRun(w.name)).slice(0, 5);
+    // ---- ラン種別の分類（RUNALYZE風）----
+    let allRunsSorted = sorted.filter(w => isRun(w.name));
+    window.__allRunsSorted = allRunsSorted; // 詳細モーダルから参照するため保持
+
+    function classifyRunType(w){
+      const n = (w.name || '').toLowerCase();
+      if(/interval|インターバル/.test(n)) return { key:'interval', label:'Interval' };
+      if(/tempo|テンポ/.test(n)) return { key:'tempo', label:'Tempo' };
+      if(/long|ロング/.test(n)) return { key:'long', label:'Long' };
+      if(/recovery|リカバリー/.test(n)) return { key:'recovery', label:'Recovery' };
+      if(w.distance && w.distance.qty && Math.abs(w.distance.qty - 5) < 0.3) return { key:'easy', label:'5km Test' };
+      return { key:'easy', label:'Easy' };
+    }
+    function runAvgHr(w){
+      if(w.heartRate && w.heartRate.length){
+        const vals = w.heartRate.map(h => h.Avg ?? h.avg ?? h.qty).filter(v => typeof v === 'number');
+        if(vals.length) return Math.round(vals.reduce((a,b)=>a+b,0) / vals.length);
+      }
+      return null;
+    }
+    function runPaceMinPerKm(w){
+      if(!w.distance || !w.duration || !w.distance.qty) return null;
+      return (w.duration/60) / w.distance.qty;
+    }
+
+    // ---- 月間集計（直近30日）----
+    const thirtyDaysAgo = new Date(now.getTime() - 30*24*60*60*1000);
+    const runsLast30 = allRunsSorted.filter(w => new Date(w.start) >= thirtyDaysAgo);
+    const totalDistance = runsLast30.reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
+    document.getElementById('stat-monthly-distance').textContent = `${totalDistance.toFixed(1)}km`;
+
+    const easyRuns30 = runsLast30.filter(w => classifyRunType(w).key === 'easy');
+    const easyPaces = easyRuns30.map(runPaceMinPerKm).filter(p => p != null);
+    if(easyPaces.length){
+      const avgPace = easyPaces.reduce((a,b)=>a+b,0) / easyPaces.length;
+      document.getElementById('stat-easy-pace').textContent = fmtPace(avgPace).replace('/km','');
+    }
+    const weeksSpan = 30/7;
+    document.getElementById('stat-run-freq').textContent = `週${(runsLast30.length / weeksSpan).toFixed(1)}回`;
+
+    // ---- ラン履歴（直近5件、タップで詳細）----
+    const runs = allRunsSorted.slice(0, 5);
+    document.getElementById('run-history-count').textContent = `直近${runs.length}件`;
     if(runs.length){
-      const list = document.getElementById('run-history-list');
-      list.innerHTML = runs.map((w, i) => {
-        const distKm = w.distance ? w.distance.qty.toFixed(2) : '?';
-        const paceStr = (w.distance && w.duration) ? fmtPace((w.duration/60) / w.distance.qty) : '';
-        const opacity = i === 0 ? '1' : (1 - i*0.15).toFixed(2);
-        return `<div class="logrow" style="opacity:${opacity};"><span class="d">${fmtDateShort(w.start)}</span><span class="m">${w.name} ${distKm}km</span><span class="v">${paceStr}</span></div>`;
-      }).join('');
+      renderRunRows(runs, 'run-history-list', true);
+      document.getElementById('show-all-runs').style.display = allRunsSorted.length > 5 ? 'block' : 'none';
 
       // 5kmベストタイムのヒーロー値も更新（距離4.5km以上のランから最速ペースを概算）
       const longRuns = runs.filter(w => w.distance && w.distance.qty >= 4.5);
@@ -819,9 +886,95 @@
         document.getElementById('run-current').textContent = `${mm}:${String(ss).padStart(2,'0')}`;
       }
     }
+
+    function renderRunRows(list, containerId, clickable){
+      const el = document.getElementById(containerId);
+      el.innerHTML = list.map((w, i) => {
+        const distKm = w.distance ? w.distance.qty.toFixed(2) : '?';
+        const pace = runPaceMinPerKm(w);
+        const paceStr = pace != null ? fmtPace(pace) : '';
+        const hr = runAvgHr(w);
+        const type = classifyRunType(w);
+        const opacity = clickable ? '1' : (1 - Math.min(i*0.08, 0.6)).toFixed(2);
+        return `<div class="logrow run-row" data-run-idx="${window.__allRunsSorted.indexOf(w)}" style="opacity:${opacity}; padding:10px 0; cursor:pointer;">
+          <span class="d">${fmtDateShort(w.start)}</span>
+          <span class="m">${w.name} ${distKm}km <span class="badge" style="background:var(--card); color:var(--sub); border:1px solid var(--line);">${type.label}</span></span>
+          <span class="v">${paceStr}${hr ? '・'+hr+'bpm' : ''}</span>
+        </div>`;
+      }).join('');
+      el.querySelectorAll('.run-row').forEach(row=>{
+        row.addEventListener('click', ()=> openRunDetail(parseInt(row.dataset.runIdx, 10)));
+      });
+    }
+    window.__renderRunRows = renderRunRows;
+  }
+
+  function openRunDetail(idx){
+    const w = window.__allRunsSorted[idx];
+    if(!w) return;
+    const distKm = w.distance ? w.distance.qty.toFixed(2) : '?';
+    const durMin = w.duration ? Math.round(w.duration/60) : null;
+    const pace = (w.distance && w.duration) ? (w.duration/60)/w.distance.qty : null;
+    const paceStr = pace != null ? fmtPace(pace) : '-';
+    const hrVals = w.heartRate ? w.heartRate.map(h => h.Avg ?? h.avg ?? h.qty).filter(v=>typeof v === 'number') : [];
+    const avgHr = hrVals.length ? Math.round(hrVals.reduce((a,b)=>a+b,0)/hrVals.length) : null;
+    const maxHr = hrVals.length ? Math.round(Math.max(...hrVals)) : null;
+    const energy = w.totalEnergy ? Math.round(w.totalEnergy.qty) : (w.activeEnergyBurned ? Math.round(w.activeEnergyBurned.qty) : null);
+    const cadence = w.stepCadence ? Math.round(w.stepCadence.qty) : null;
+    const elevation = w.flightsClimbed ? w.flightsClimbed.qty : null;
+
+    document.getElementById('run-detail-title').textContent = `${fmtDateShort(w.start)} ${w.name}`;
+    document.getElementById('run-detail-body').innerHTML = `
+      <div class="stat-grid" style="margin:0 0 16px;">
+        <div class="sitem"><div class="v">${distKm}km</div><div class="l">距離</div></div>
+        <div class="sitem"><div class="v">${durMin ?? '-'}分</div><div class="l">時間</div></div>
+        <div class="sitem"><div class="v">${paceStr}</div><div class="l">平均ペース</div></div>
+      </div>
+      <div class="stat-grid" style="margin:0 0 16px;">
+        <div class="sitem"><div class="v">${avgHr ?? '-'}</div><div class="l">平均心拍</div></div>
+        <div class="sitem"><div class="v">${maxHr ?? '-'}</div><div class="l">最大心拍</div></div>
+        <div class="sitem"><div class="v">${energy ?? '-'}</div><div class="l">消費kcal</div></div>
+      </div>
+      <div class="stat-grid" style="margin:0;">
+        <div class="sitem"><div class="v">${cadence ?? '-'}</div><div class="l">ケイデンス</div></div>
+        <div class="sitem"><div class="v">${elevation ?? '-'}</div><div class="l">昇った階数</div></div>
+        <div class="sitem"><div class="v">${classifyRunTypeGlobal(w).label}</div><div class="l">種別</div></div>
+      </div>
+    `;
+    openModal('modal-run-detail');
+  }
+  function classifyRunTypeGlobal(w){
+    const n = (w.name || '').toLowerCase();
+    if(/interval|インターバル/.test(n)) return { key:'interval', label:'Interval' };
+    if(/tempo|テンポ/.test(n)) return { key:'tempo', label:'Tempo' };
+    if(/long|ロング/.test(n)) return { key:'long', label:'Long' };
+    if(/recovery|リカバリー/.test(n)) return { key:'recovery', label:'Recovery' };
+    if(w.distance && w.distance.qty && Math.abs(w.distance.qty - 5) < 0.3) return { key:'easy', label:'5km Test' };
+    return { key:'easy', label:'Easy' };
   }
 
   loadRealData();
+
+  // ---- 「すべてのランを見る」モーダル ----
+  document.getElementById('show-all-runs').addEventListener('click', ()=>{
+    renderAllRunsList('all');
+    openModal('modal-all-runs');
+  });
+  function renderAllRunsList(typeFilter){
+    const all = window.__allRunsSorted || [];
+    const filtered = typeFilter === 'all' ? all : all.filter(w => classifyRunTypeGlobal(w).key === typeFilter);
+    if(window.__renderRunRows) window.__renderRunRows(filtered, 'all-runs-list', false);
+    if(!filtered.length){
+      document.getElementById('all-runs-list').innerHTML = '<div class="soon">該当するランがありません。</div>';
+    }
+  }
+  document.getElementById('run-type-filter-chips').querySelectorAll('.chip-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.getElementById('run-type-filter-chips').querySelectorAll('.chip-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAllRunsList(btn.dataset.type);
+    });
+  });
 
   // =====================================================
   // ここから: 手動記録機能（localStorage）
@@ -932,6 +1085,8 @@
 
     document.getElementById('input-strength').value = '';
     renderStrengthRecent(exercise);
+    buildStrengthRecommendations();
+    renderMuscleTab();
   });
 
   // ---- 食事記録 ----
@@ -950,6 +1105,7 @@
     saveLogs(STORAGE_KEYS.meal, logs);
     document.getElementById('input-meal').value = '';
     renderMealRecent();
+    renderMealLogSection();
     closeModal('modal-meal');
     // AI栄養推定はWorkerのAIプロキシが設定されていれば非同期で試みる（未設定なら何もしない）
     tryEstimateMealNutrition(entry);
@@ -999,6 +1155,91 @@
   setupChipGroup('time-chips', 'data-time');
   setupChipGroup('mood-chips', 'data-mood');
   applyRecFilter();
+
+  // ---- 筋トレのおすすめメニューを記録から動的に組み立てる ----
+  const ALL_EXERCISES = ['腕立て','ブルガリアンスクワット','リュックローイング','ヒップリフト','カーフレイズ','体幹'];
+
+  function getExercisesByRecency(){
+    const logs = loadLogs(STORAGE_KEYS.strength);
+    const lastDone = {};
+    ALL_EXERCISES.forEach(ex => lastDone[ex] = 0);
+    logs.forEach(l => { lastDone[l.exercise] = Math.max(lastDone[l.exercise] || 0, l.ts); });
+    return [...ALL_EXERCISES].sort((a,b) => (lastDone[a]||0) - (lastDone[b]||0));
+  }
+
+  function buildStrengthRecommendations(){
+    const byRecency = getExercisesByRecency(); // 最近やっていない順
+    const logs = loadLogs(STORAGE_KEYS.strength);
+
+    // 全身メニュー: 6種目すべて、最近やっていないもの順に並べる
+    const fullEl = document.getElementById('rec-strength-full-reason');
+    if(fullEl){
+      const doneRecently = byRecency.filter(ex => {
+        const last = logs.filter(l => l.exercise === ex).slice(-1)[0];
+        return last;
+      });
+      const menuStr = byRecency.join('・');
+      if(doneRecently.length === 0){
+        fullEl.textContent = `${menuStr} を各3セット。まだ記録がないので、まずは基準となる回数を把握しましょう。`;
+      } else {
+        fullEl.textContent = `${menuStr} を各3セット。直近7日間の筋トレ回数が少なめです。`;
+      }
+    }
+
+    // 時短メニュー: 最近やっていない上位2種目だけ
+    const quickEl = document.getElementById('rec-strength-quick-reason');
+    if(quickEl){
+      const pick = byRecency.slice(0, 2);
+      quickEl.textContent = `${pick.join('・')} の2種目だけ。時間がない日でも運動バランスを維持できます。`;
+    }
+  }
+  buildStrengthRecommendations();
+
+  // ---- 「筋肉」タブ: 種目ごとの筋トレ履歴一覧 ----
+  function renderMuscleTab(){
+    const logs = loadLogs(STORAGE_KEYS.strength);
+    const container = document.getElementById('muscle-log-container');
+    if(!logs.length){
+      container.innerHTML = `<div class="soon">まだ筋トレの記録がありません。「今日」画面の下部から記録してみてください。</div>`;
+      return;
+    }
+    container.innerHTML = ALL_EXERCISES.map(ex=>{
+      const exLogs = logs.filter(l => l.exercise === ex).slice(-6).reverse();
+      if(!exLogs.length) return '';
+      const rows = exLogs.map((l,i)=>{
+        const prev = exLogs[i+1];
+        let trend = '';
+        if(prev){
+          if(l.total > prev.total) trend = '<span style="color:var(--good);">↑</span>';
+          else if(l.total < prev.total) trend = '<span style="color:var(--warn);">↓</span>';
+          else trend = '<span style="color:var(--sub);">→</span>';
+        }
+        return `<div class="logrow" style="opacity:${(1 - i*0.12).toFixed(2)};"><span class="d">${l.date}</span><span class="m">${l.reps.join(' ')}</span><span class="v">計${l.total} ${trend}</span></div>`;
+      }).join('');
+      return `<div class="chart-card"><div class="chart-head"><h2>${ex}</h2><span>直近${exLogs.length}回</span></div><div style="display:flex; flex-direction:column; gap:10px;">${rows}</div></div>`;
+    }).join('') || `<div class="soon">まだ筋トレの記録がありません。</div>`;
+  }
+  renderMuscleTab();
+  document.querySelector('#change-tabs [data-panel="muscle"]').addEventListener('click', renderMuscleTab);
+
+  // ---- 「健康」画面: 食事ログ一覧 ----
+  function renderMealLogSection(){
+    const logs = loadLogs(STORAGE_KEYS.meal).slice().reverse();
+    const countEl = document.getElementById('meal-log-count');
+    const listEl = document.getElementById('meal-log-list');
+    if(!logs.length){
+      countEl.textContent = 'まだ記録がありません。「今日」画面の下部から記録してみてください。';
+      listEl.innerHTML = '';
+      return;
+    }
+    countEl.textContent = `直近${Math.min(logs.length, 20)}件`;
+    listEl.innerHTML = logs.slice(0, 20).map(l=>{
+      const est = l.estimate ? `<span style="color:var(--sub); font-size:11px;"> ・約${l.estimate.kcal}kcal（推定）</span>` : '';
+      return `<div class="nrow"><span class="n">${l.date} ${l.slot}: ${l.text}${est}</span></div>`;
+    }).join('');
+  }
+  renderMealLogSection();
+  document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', renderMealLogSection);
 </script>
 
 </body>
