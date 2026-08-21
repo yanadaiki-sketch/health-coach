@@ -876,8 +876,10 @@
     if(!m || (!m.kcal && !m.protein && !m.fat && !m.carbs)){
       return { daysCovered: 0, summary: '' };
     }
-    function dailyAverage(metric){
+    function dailyAverage(metric, autoDetectKJ){
       if(!metric || !metric.data) return { avg: null, days: 0 };
+      // 単位がkJ(キロジュール)の場合はkcalに変換する（4.184 kJ = 1 kcal）
+      const isKJ = /kj|kilojoule/i.test(metric.units || '');
       const byDate = {};
       metric.data.forEach(p=>{
         const d = new Date(p.date.replace(' ', 'T'));
@@ -887,37 +889,52 @@
       });
       const days = Object.keys(byDate);
       if(!days.length) return { avg: null, days: 0 };
-      const avg = days.reduce((s,k)=>s+byDate[k],0) / days.length;
-      return { avg, days: days.length };
+      let avg = days.reduce((s,k)=>s+byDate[k],0) / days.length;
+      // units表記があてにならない場合の保険: カロリーが明らかに大きすぎる(1日4500kcal超)ならkJとみなして変換
+      const looksLikeKJ = isKJ || (autoDetectKJ && avg > 4500);
+      if(looksLikeKJ) avg = avg / 4.184;
+      return { avg, days: days.length, convertedFromKJ: looksLikeKJ };
     }
 
-    const kcalR = dailyAverage(m.kcal);
+    const kcalR = dailyAverage(m.kcal, true);
     const proteinR = dailyAverage(m.protein);
     const fatR = dailyAverage(m.fat);
     const carbsR = dailyAverage(m.carbs);
     const daysCovered = Math.max(kcalR.days, proteinR.days, fatR.days, carbsR.days);
     if(!daysCovered) return { daysCovered: 0, summary: '' };
 
-    const setRow = (id, val, unit, grade) => {
-      const el = gradeEl(id);
-      if(!el) return;
-      el.textContent = val != null ? `${Math.round(val)}${unit}` : '-';
-      el.className = 's ' + (grade === 'good' ? 'good' : grade === 'warn' ? 'warn' : 'mid');
+    // 簡易的な目安（日本人の食事摂取基準・成人の一般的な参考値。個別の目標体重・活動量には未対応）
+    function levelOf(val, low, high){
+      if(val == null) return null;
+      if(val < low) return 'low';
+      if(val > high) return 'high';
+      return 'ok';
+    }
+    const levels = {
+      kcal: levelOf(kcalR.avg, 1800, 2600),
+      protein: levelOf(proteinR.avg, 60, 120),
+      fat: levelOf(fatR.avg, 40, 70),
+      carbs: levelOf(carbsR.avg, 200, 350),
     };
-    // 簡易的な目安（成人の一般的な参考値。個別の目標体重・活動量には未対応）
-    const proteinLevel = proteinR.avg == null ? 'unknown' : proteinR.avg >= 60 ? 'good' : proteinR.avg >= 40 ? 'mid' : 'low';
-    const kcalLevel = kcalR.avg == null ? 'unknown' : (kcalR.avg >= 1400 && kcalR.avg <= 2600) ? 'ok' : 'watch';
+    const labelMap = { low: '少なめ', ok: '適正', high: '多め' };
+    const classMap = { low: 'warn', ok: 'good', high: 'mid' };
 
-    setRow('nut-kcal', kcalR.avg, 'kcal', kcalLevel === 'ok' ? 'good' : 'warn');
-    setRow('nut-protein', proteinR.avg, 'g', proteinLevel === 'good' ? 'good' : proteinLevel === 'mid' ? 'mid' : 'warn');
-    setRow('nut-fat', fatR.avg, 'g', 'mid');
-    setRow('nut-carbs', carbsR.avg, 'g', 'mid');
+    const setRow = (id, val, unit, level) => {
+      const el = gradeEl(id);
+      if(!el || val == null) return;
+      el.textContent = `${Math.round(val)}${unit}（${labelMap[level] || '-'}）`;
+      el.className = 's ' + (classMap[level] || 'mid');
+    };
+    setRow('nut-kcal', kcalR.avg, 'kcal', levels.kcal);
+    setRow('nut-protein', proteinR.avg, 'g', levels.protein);
+    setRow('nut-fat', fatR.avg, 'g', levels.fat);
+    setRow('nut-carbs', carbsR.avg, 'g', levels.carbs);
 
     const summaryParts = [];
-    if(kcalR.avg != null) summaryParts.push(`平均${Math.round(kcalR.avg)}kcal`);
-    if(proteinR.avg != null) summaryParts.push(`タンパク質${Math.round(proteinR.avg)}g`);
+    if(kcalR.avg != null) summaryParts.push(`平均${Math.round(kcalR.avg)}kcal（${labelMap[levels.kcal]}）`);
+    if(proteinR.avg != null) summaryParts.push(`タンパク質${Math.round(proteinR.avg)}g（${labelMap[levels.protein]}）`);
 
-    return { daysCovered, proteinLevel, kcalLevel, summary: summaryParts.join('、') + '。' };
+    return { daysCovered, proteinLevel: levels.protein === 'low' ? 'low' : 'ok', kcalLevel: levels.kcal === 'ok' ? 'ok' : 'watch', summary: summaryParts.join('、') + '。' };
   }
 
   function loadLogsSafe(key){
