@@ -401,43 +401,44 @@
       </header>
 
       <div class="toggle" id="health-toggle">
-        <button class="active">7日</button>
-        <button>30日</button>
+        <button class="active" data-days="7">7日</button>
+        <button data-days="30">30日</button>
       </div>
 
       <div class="summary">
         <div class="summary-label">総合健康状態</div>
-        <div class="summary-status">良好</div>
-        <div class="summary-note">直近30日は運動と体組成が安定して良く、心肺機能も緩やかに改善しています。睡眠時間とカルシウム摂取にはやや伸びしろがあります。</div>
+        <div class="summary-status" id="summary-status">データ収集中</div>
+        <div class="summary-note" id="summary-note">記録が蓄積すると、ここに総合評価が表示されます。</div>
       </div>
 
       <div class="section-title"><h2>項目別スコア</h2></div>
-      <div class="grid">
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">睡眠</span><span class="grade B">B</span></div><div class="gitem-desc">平均6:42。日によるばらつきがやや大きめ。</div></div>
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">身体活動</span><span class="grade A">A</span></div><div class="gitem-desc">歩数・活動量ともに安定して目標圏内。</div></div>
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">心肺</span><span class="grade B">B</span></div><div class="gitem-desc">同心拍でのペースが緩やかに向上中。</div></div>
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">運動</span><span class="grade A">A</span></div><div class="gitem-desc">ラン・筋トレともに継続できています。</div></div>
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">体組成</span><span class="grade B">B</span></div><div class="gitem-desc">体重はほぼ横ばい、腹囲がやや減少。</div></div>
-        <div class="gitem"><div class="gitem-top"><span class="gitem-name">栄養</span><span class="grade B">B</span></div><div class="gitem-desc">タンパク質は十分、カルシウムがやや不足。</div></div>
+      <div class="grid" id="score-grid">
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">睡眠</span><span class="grade B" id="grade-sleep">-</span></div><div class="gitem-desc" id="grade-sleep-desc">データ収集中</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">身体活動</span><span class="grade B" id="grade-activity">-</span></div><div class="gitem-desc" id="grade-activity-desc">データ収集中</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">心肺</span><span class="grade B" id="grade-cardio">-</span></div><div class="gitem-desc" id="grade-cardio-desc">データ収集中</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">運動</span><span class="grade B" id="grade-exercise">-</span></div><div class="gitem-desc" id="grade-exercise-desc">データ収集中</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">体組成</span><span class="grade B" id="grade-body">-</span></div><div class="gitem-desc" id="grade-body-desc">データ収集中</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">栄養</span><span class="grade B" id="grade-nutrition">-</span></div><div class="gitem-desc" id="grade-nutrition-desc">データ収集中</div></div>
       </div>
 
       <div class="focus">
         <h2>今月改善するなら</h2>
-        <div class="focus-item"><div class="focus-num">01</div><div class="focus-body"><b>睡眠時間</b><p>平均6:42と、目標の7時間をやや下回る日が続いています。就寝時刻を15分早めるだけでも変化が出やすい範囲です。</p></div></div>
-        <div class="focus-item"><div class="focus-num">02</div><div class="focus-body"><b>カルシウム摂取</b><p>過去4週間ではカルシウムの少ない食事構成が続いています。ヨーグルト、牛乳、豆腐、小魚などを少し増やすと改善しやすいです。</p></div></div>
+        <div id="focus-list"><div class="focus-item"><div class="focus-body"><p>記録が蓄積すると、改善ポイントが表示されます。</p></div></div></div>
       </div>
 
       <div class="nutri">
         <h2>栄養（過去30日）</h2>
         <div class="nutri-sub">日本人の食事摂取基準を目安に評価。◎良好 ○概ね良好 △やや不足</div>
-        <div class="nrow"><span class="n">タンパク質</span><span class="s good">◎</span></div>
-        <div class="nrow"><span class="n">食物繊維</span><span class="s good">○</span></div>
-        <div class="nrow"><span class="n">カルシウム</span><span class="s warn">△</span></div>
-        <div class="nrow"><span class="n">鉄</span><span class="s good">○</span></div>
-        <div class="nrow"><span class="n">ビタミンD</span><span class="s warn">△</span></div>
-        <div class="nrow"><span class="n">塩分</span><span class="s mid">やや多め</span></div>
-        <div class="nrow"><span class="n">ビタミンB群</span><span class="s good">○</span></div>
-        <div class="unknown-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。</div>
+        <div id="nutrition-rows">
+          <div class="nrow"><span class="n">タンパク質</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">食物繊維</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">カルシウム</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">鉄</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">ビタミンD</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">塩分</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">ビタミンB群</span><span class="s mid">-</span></div>
+        </div>
+        <div class="unknown-note" id="nutrition-status-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。</div>
       </div>
 
       <div class="nutri" id="meal-log-section">
@@ -477,29 +478,24 @@
           <div class="goal-note" id="weight-note">あと2.4kg。このペース（週0.2kg）なら目安は約12週間後です。</div>
         </div>
         <div class="chart-card">
-          <div class="chart-head"><h2>体重推移</h2><span>6ヶ月</span></div>
-          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
+          <div class="chart-head"><h2>体重推移</h2><span id="weight-chart-span">実測データなし</span></div>
+          <svg viewBox="0 0 320 120" preserveAspectRatio="none" id="weight-chart-svg">
             <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
             <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
             <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
-            <polyline points="10,45 65,50 120,42 175,55 230,60 310,68" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="10" cy="45" r="4" fill="#6FA287"/>
-            <circle cx="310" cy="68" r="4" fill="#6FA287"/>
+            <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="weight-chart-line"/>
           </svg>
-          <div class="chart-note"><div class="compare"><div><div class="m">6月平均</div><div class="v">68.2kg</div></div><div class="arrow">→</div><div><div class="m">8月平均</div><div class="v">67.4kg</div></div></div></div>
-          <div class="chart-note" style="border-top:none; padding-top:8px;">単日ではなく7日平均で見ています。体重はほぼ横ばいながら緩やかな減少傾向です。</div>
+          <div class="chart-note" id="weight-chart-note">体重を記録するとここにグラフが表示されます。</div>
         </div>
         <div class="stat-grid">
-          <div class="sitem"><div class="v">21.8</div><div class="l">BMI</div></div>
-          <div class="sitem"><div class="v">16.2%</div><div class="l">体脂肪率</div></div>
-          <div class="sitem"><div class="v">-0.3%</div><div class="l">3ヶ月変化</div></div>
+          <div class="sitem"><div class="v" id="stat-bmi">-</div><div class="l">BMI</div></div>
+          <div class="sitem"><div class="v" id="stat-bodyfat">-</div><div class="l">体脂肪率</div></div>
+          <div class="sitem"><div class="v" id="stat-weight-change">-</div><div class="l">3ヶ月変化</div></div>
         </div>
         <div class="chart-card">
-          <div class="chart-head"><h2>体重ログ</h2><span>直近5件</span></div>
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <div class="logrow"><span class="d">8/20</span><span class="m">起床後・空腹時</span><span class="v">67.3kg</span></div>
-            <div class="logrow" style="opacity:0.7;"><span class="d">8/17</span><span class="m">起床後・空腹時</span><span class="v">67.6kg</span></div>
-            <div class="logrow" style="opacity:0.5;"><span class="d">8/14</span><span class="m">起床後・空腹時</span><span class="v">67.8kg</span></div>
+          <div class="chart-head"><h2>体重ログ</h2><span id="weight-log-count">直近5件</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="weight-log-list">
+            <div class="soon">まだ記録がありません。</div>
           </div>
         </div>
       </div>
@@ -643,11 +639,12 @@
     });
   });
 
-  // ===== 健康: 期間トグル(見た目のみ) =====
+  // ===== 健康: 期間トグル（実データで再計算）=====
   document.querySelectorAll('#health-toggle button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('#health-toggle button').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
+      computeHealthScores(parseInt(btn.dataset.days, 10));
     });
   });
 
@@ -742,18 +739,19 @@
       // ---- 睡眠 ----
       const sleep = findMetric(metrics, ['sleep_analysis']);
       const sp = latestPoint(sleep);
+      let latestSleepHours = null;
       if(sp){
         // Mi Fitness経由だとasleep/totalSleepが0でinBedだけ値が入ることがあるため、
         // totalSleep → asleep → inBed の順で採用する
-        const hours = (sp.totalSleep && sp.totalSleep > 0) ? sp.totalSleep
+        latestSleepHours = (sp.totalSleep && sp.totalSleep > 0) ? sp.totalSleep
                     : (sp.asleep && sp.asleep > 0) ? sp.asleep
                     : (sp.inBed || null);
-        if(hours != null){
-          document.getElementById('stat-sleep').textContent = fmtMinutesToHM(hours*60);
+        if(latestSleepHours != null){
+          document.getElementById('stat-sleep').textContent = fmtMinutesToHM(latestSleepHours*60);
         }
       }
 
-      // ---- 体重 ----
+      // ---- 体重（全履歴を保持してグラフ・増減・BMIに使う）----
       const weight = findMetric(metrics, ['weight_body_mass']);
       const wp = latestPoint(weight);
       if(wp && wp.qty != null){
@@ -761,6 +759,14 @@
         document.getElementById('weight-hero-value').innerHTML = `${kg}<span class="unit">kg</span>`;
         document.getElementById('weight-current').textContent = `${kg}kg`;
       }
+      const bmiMetric = findMetric(metrics, ['body_mass_index','bmi']);
+      const bodyFatMetric = findMetric(metrics, ['body_fat_percentage']);
+      const bmiP = latestPoint(bmiMetric), bfP = latestPoint(bodyFatMetric);
+      if(bmiP && bmiP.qty != null) document.getElementById('stat-bmi').textContent = bmiP.qty.toFixed(1);
+      if(bfP && bfP.qty != null) document.getElementById('stat-bodyfat').textContent = bfP.qty.toFixed(1) + '%';
+
+      window.__lastWorkerWeightData = weight ? weight.data : [];
+      updateWeightViews(window.__lastWorkerWeightData);
 
       const updatedAt = json.metricsUpdatedAt ? new Date(json.metricsUpdatedAt) : null;
       const label = updatedAt ? `実データ反映済み（${updatedAt.getMonth()+1}/${updatedAt.getDate()} ${String(updatedAt.getHours()).padStart(2,'0')}:${String(updatedAt.getMinutes()).padStart(2,'0')}更新）` : '実データ反映済み';
@@ -768,13 +774,198 @@
 
       // ---- ワークアウト（運動バランス・ラン履歴・5km） ----
       const workouts = json.data && json.data.workouts ? json.data.workouts : [];
+      window.__latestSleepHours = latestSleepHours;
+      window.__latestWorkouts = workouts;
       if(workouts.length){
         updateWorkouts(workouts);
       }
 
+      // ---- 今日画面: コンディション・脚への負荷（ワークアウトデータのセット後に実行）----
+      updateConditionAndLegLoad(latestSleepHours);
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+
     }catch(e){
       setStatus('error', 'データ取得に失敗したためサンプルを表示中');
       console.error(e);
+    }
+  }
+
+  // ---- 体重の推移グラフ・増減幅・体重ログ一覧（Worker実データ＋手動ログを統合）----
+  function updateWeightViews(workerWeightData){
+    const workerPoints = (workerWeightData || []).map(p => ({
+      date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ'
+    })).filter(p => !isNaN(p.date) && p.kg != null);
+    const manualPoints = loadLogsSafe('hc_weight_logs').map(l => ({
+      date: new Date(l.ts), kg: l.kg, source: '手入力'
+    }));
+    const all = [...workerPoints, ...manualPoints].sort((a,b) => a.date - b.date);
+    if(!all.length) return;
+
+    // グラフ（直近30件程度に間引き）
+    const chartPoints = all.slice(-30);
+    const kgs = chartPoints.map(p=>p.kg);
+    const minKg = Math.min(...kgs), maxKg = Math.max(...kgs);
+    const range = (maxKg - minKg) || 1;
+    const W = 320, H = 120, pad = 10;
+    const svgPoints = chartPoints.map((p,i)=>{
+      const x = pad + (i/(Math.max(chartPoints.length-1,1))) * (W - pad*2);
+      const y = (H - pad) - ((p.kg - minKg)/range) * (H - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    document.getElementById('weight-chart-line').setAttribute('points', svgPoints);
+    document.getElementById('weight-chart-span').textContent = `直近${chartPoints.length}件`;
+
+    // 増減幅（3ヶ月前 or 最も古い記録 と最新の差）
+    const latest = all[all.length-1];
+    const threeMonthsAgo = new Date(latest.date.getTime() - 90*24*60*60*1000);
+    const baseline = all.find(p => p.date >= threeMonthsAgo) || all[0];
+    const diff = latest.kg - baseline.kg;
+    const arrow = diff < 0 ? '↓' : diff > 0 ? '↑' : '→';
+    document.getElementById('weight-hero-delta').textContent = `${arrow} ${Math.abs(diff).toFixed(1)}kg / ${all.length > 1 ? Math.round((latest.date-baseline.date)/(24*60*60*1000)) + '日' : '記録1件'}`;
+    document.getElementById('stat-weight-change').textContent = baseline.kg ? `${diff>=0?'+':''}${((diff/baseline.kg)*100).toFixed(1)}%` : '-';
+    document.getElementById('weight-chart-note').textContent = all.length >= 3
+      ? `${chartPoints.length}件の記録から作成。${diff < -0.1 ? '緩やかな減少傾向です。' : diff > 0.1 ? '緩やかな増加傾向です。' : 'ほぼ横ばいです。'}`
+      : 'まだ記録が少ないため、傾向の判断には時間がかかります。';
+
+    // 体重ログ一覧（最新5件）
+    const recent5 = [...all].reverse().slice(0,5);
+    document.getElementById('weight-log-count').textContent = `直近${recent5.length}件`;
+    document.getElementById('weight-log-list').innerHTML = recent5.map((p,i)=>{
+      const m = p.date.getMonth()+1, d = p.date.getDate();
+      return `<div class="logrow" style="opacity:${(1-i*0.15).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m">${p.source}</span><span class="v">${p.kg.toFixed(1)}kg</span></div>`;
+    }).join('');
+  }
+
+  // ---- 今日画面: コンディション・脚への負荷を実データから判定 ----
+  function updateConditionAndLegLoad(sleepHours){
+    const workouts = window.__latestWorkouts || [];
+    const now = new Date();
+    const twoDaysAgo = new Date(now.getTime() - 2*24*60*60*1000);
+    const recentHard = workouts.filter(w => new Date(w.start) >= twoDaysAgo && /ラン|run|インターバル|interval|筋トレ/i.test(w.name||''));
+    const legLoadEl = document.getElementById('stat-legload');
+    if(legLoadEl){
+      legLoadEl.textContent = recentHard.length >= 2 ? '高い' : recentHard.length === 1 ? '中くらい' : '低い';
+    }
+    const conditionEl = document.getElementById('condition-text');
+    if(conditionEl){
+      let score = 0;
+      if(sleepHours != null){ if(sleepHours >= 6.5) score++; else if(sleepHours < 5.5) score--; }
+      if(recentHard.length >= 3) score--;
+      conditionEl.textContent = score >= 1 ? '良好' : score <= -1 ? '低め' : '普通';
+    }
+  }
+
+  function loadLogsSafe(key){
+    try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  }
+
+  // ---- 健康画面: 項目別スコア・総合評価・改善フォーカスを実データから算出 ----
+  function computeHealthScores(days){
+    const now = new Date();
+    const since = new Date(now.getTime() - days*24*60*60*1000);
+    const workouts = (window.__latestWorkouts || []).filter(w => new Date(w.start) >= since);
+    const weightLogsAll = [
+      ...loadLogsSafe('hc_weight_logs').map(l => ({ date: new Date(l.ts), kg: l.kg })),
+    ];
+    const weightInWindow = weightLogsAll.filter(p => p.date >= since);
+    const mealLogsInWindow = loadLogsSafe('hc_meal_logs').filter(l => l.ts && new Date(l.ts) >= since);
+
+    const setGrade = (key, grade, desc) => {
+      const g = document.getElementById(`grade-${key}`);
+      const d = document.getElementById(`grade-${key}-desc`);
+      if(!g || !d) return;
+      g.textContent = grade;
+      g.className = `grade ${grade === '-' ? '' : (grade === 'A' ? 'A' : grade === 'C' ? 'C' : 'B')}`;
+      d.textContent = desc;
+    };
+
+    // 睡眠: 直近の睡眠時間（今は最新1点のみ取得できているため簡易判定）
+    const sleepH = window.__latestSleepHours;
+    if(sleepH != null){
+      if(sleepH >= 6.5) setGrade('sleep', 'A', `直近の記録で${sleepH.toFixed(1)}時間。目標の7時間に近い状態です。`);
+      else if(sleepH >= 5.5) setGrade('sleep', 'B', `直近の記録で${sleepH.toFixed(1)}時間。目標の7時間よりやや短めです。`);
+      else setGrade('sleep', 'C', `直近の記録で${sleepH.toFixed(1)}時間。睡眠不足の可能性があります。`);
+    } else {
+      setGrade('sleep', '-', 'データ不足のため判断できません。');
+    }
+
+    // 身体活動・運動: 期間中のワークアウト頻度
+    const weeksSpan = days/7;
+    const freq = workouts.length / weeksSpan;
+    if(workouts.length === 0){
+      setGrade('activity', '-', 'データ不足のため判断できません。');
+      setGrade('exercise', '-', 'データ不足のため判断できません。');
+    } else {
+      setGrade('activity', freq >= 3 ? 'A' : freq >= 1.5 ? 'B' : 'C', `期間中${workouts.length}回のワークアウトを記録（週${freq.toFixed(1)}回相当）。`);
+      const hasRun = workouts.some(w => /ラン|run/i.test(w.name||''));
+      const hasStrength = workouts.some(w => /筋トレ|strength/i.test(w.name||''));
+      setGrade('exercise', (hasRun && hasStrength) ? 'A' : (hasRun || hasStrength) ? 'B' : 'C',
+        (hasRun && hasStrength) ? 'ラン・筋トレともに記録があります。' : hasRun ? 'ランの記録はありますが、筋トレの記録がありません。' : hasStrength ? '筋トレの記録はありますが、ランの記録がありません。' : '運動の種類が偏っています。');
+    }
+
+    // 心肺: 期間中のEasy Runペースを前半・後半で比較
+    const easyRuns = workouts.filter(w => /ラン|run/i.test(w.name||'') && w.distance && w.duration)
+      .sort((a,b) => new Date(a.start) - new Date(b.start));
+    if(easyRuns.length >= 4){
+      const half = Math.floor(easyRuns.length/2);
+      const paceOf = w => (w.duration/60)/w.distance.qty;
+      const firstAvg = easyRuns.slice(0,half).reduce((s,w)=>s+paceOf(w),0)/half;
+      const secondAvg = easyRuns.slice(half).reduce((s,w)=>s+paceOf(w),0)/(easyRuns.length-half);
+      const improved = firstAvg - secondAvg;
+      setGrade('cardio', improved > 0.15 ? 'A' : improved > -0.15 ? 'B' : 'C',
+        improved > 0.15 ? `期間前半より後半の方がペースが速くなっています（${fmtPace(firstAvg)}→${fmtPace(secondAvg)}）。` : improved > -0.15 ? 'ペースはほぼ横ばいです。' : 'ペースがやや落ちています。休養も検討してください。');
+    } else {
+      setGrade('cardio', '-', 'ラン記録が少ないため判断できません（4回以上で評価します）。');
+    }
+
+    // 体組成: 体重の記録
+    if(weightInWindow.length >= 2){
+      const sorted = [...weightInWindow].sort((a,b)=>a.date-b.date);
+      const diff = sorted[sorted.length-1].kg - sorted[0].kg;
+      setGrade('body', Math.abs(diff) < 5 ? 'B' : 'B', `期間中に${sorted.length}件記録。${diff < -0.1 ? `${Math.abs(diff).toFixed(1)}kg減少しています。` : diff > 0.1 ? `${diff.toFixed(1)}kg増加しています。` : 'ほぼ横ばいです。'}`);
+    } else {
+      setGrade('body', '-', '体重の記録が少ないため判断できません。');
+    }
+
+    // 栄養: 記録率で判定（内容の質はAI連携なしでは評価不可）
+    const mealDaysCovered = new Set(mealLogsInWindow.map(l => l.date)).size;
+    const nutritionNote = document.getElementById('nutrition-status-note');
+    if(mealLogsInWindow.length === 0){
+      setGrade('nutrition', '-', '食事の記録がないため判断できません。');
+    } else {
+      setGrade('nutrition', '-', `${mealLogsInWindow.length}件の食事記録がありますが、栄養素の推定にはAI連携が必要です（未設定）。`);
+    }
+    if(nutritionNote){
+      nutritionNote.textContent = mealLogsInWindow.length > 0
+        ? `${mealLogsInWindow.length}件の食事記録があります。栄養素の内訳を見るにはAI連携（未設定）が必要です。`
+        : '記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。';
+    }
+
+    // 総合評価・改善フォーカス
+    const grades = ['sleep','activity','cardio','exercise','body','nutrition'].map(k => document.getElementById(`grade-${k}`).textContent);
+    const validGrades = grades.filter(g => g !== '-');
+    const summaryStatus = document.getElementById('summary-status');
+    const summaryNote = document.getElementById('summary-note');
+    if(validGrades.length < 2){
+      summaryStatus.textContent = 'データ収集中';
+      summaryNote.textContent = `記録がまだ少ないため、総合評価はできません。今日画面から記録を続けると、${days}日ほどで評価できるようになります。`;
+    } else {
+      const cCount = validGrades.filter(g=>g==='C').length;
+      summaryStatus.textContent = cCount === 0 ? '良好' : cCount === 1 ? 'まずまず' : '要注意';
+      summaryNote.textContent = `直近${days}日で評価できた${validGrades.length}項目のうち、${validGrades.filter(g=>g==='A').length}項目が良好、${cCount}項目が要改善です。`;
+    }
+
+    // 改善フォーカス: Cグレードの項目、なければBグレードの中から1〜2個
+    const labels = { sleep:'睡眠時間', activity:'身体活動量', cardio:'ランのペース', exercise:'運動の種類', body:'体重の記録頻度', nutrition:'食事の記録' };
+    const keys = ['sleep','activity','cardio','exercise','body','nutrition'];
+    const cKeys = keys.filter(k => document.getElementById(`grade-${k}`).textContent === 'C');
+    const bKeys = keys.filter(k => document.getElementById(`grade-${k}`).textContent === 'B');
+    const focusKeys = (cKeys.length ? cKeys : bKeys).slice(0,2);
+    const focusList = document.getElementById('focus-list');
+    if(!focusKeys.length){
+      focusList.innerHTML = `<div class="focus-item"><div class="focus-body"><p>記録が蓄積すると、改善ポイントが表示されます。</p></div></div>`;
+    } else {
+      focusList.innerHTML = focusKeys.map((k,i) => `<div class="focus-item"><div class="focus-num">0${i+1}</div><div class="focus-body"><b>${labels[k]}</b><p>${document.getElementById(`grade-${k}-desc`).textContent}</p></div></div>`).join('');
     }
   }
 
@@ -1186,6 +1377,8 @@
     document.getElementById('weight-current').textContent = `${val.toFixed(1)}kg`;
     document.getElementById('input-weight').value = '';
     renderWeightRecent();
+    updateWeightViews(window.__lastWorkerWeightData || []);
+    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
     closeModal('modal-weight');
   });
 
@@ -1235,6 +1428,7 @@
     renderStrengthRecent(exercise);
     buildStrengthRecommendations();
     renderMuscleTab();
+    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
   });
 
   // ---- 食事記録 ----
@@ -1255,6 +1449,7 @@
     renderMealRecent();
     renderMealLogSection();
     closeModal('modal-meal');
+    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
     // AI栄養推定はWorkerのAIプロキシが設定されていれば非同期で試みる（未設定なら何もしない）
     tryEstimateMealNutrition(entry);
   });
@@ -1387,7 +1582,14 @@
     }).join('');
   }
   renderMealLogSection();
-  document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', renderMealLogSection);
+  document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', ()=>{
+    renderMealLogSection();
+    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+  });
+
+  // フォールバック: 実データ取得が遅い/失敗しても、手入力ログだけでスコアを試算しておく
+  computeHealthScores(7);
+  updateWeightViews([]);
 </script>
 
 </body>
