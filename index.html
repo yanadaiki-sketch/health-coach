@@ -542,6 +542,10 @@
           <div class="sitem"><div class="v" id="stat-easy-pace">6:48</div><div class="l">Easy Run平均</div></div>
           <div class="sitem"><div class="v" id="stat-run-freq">週2.4回</div><div class="l">走行頻度</div></div>
         </div>
+        <div class="chart-card" id="personal-bests-card" style="display:none;">
+          <div class="chart-head"><h2>自己ベスト</h2><span>全期間</span></div>
+          <div class="stat-grid" style="margin:0;" id="personal-bests-grid"></div>
+        </div>
         <div class="chart-card">
           <div class="chart-head"><h2>ラン履歴</h2><span id="run-history-count">直近5件</span></div>
           <div style="display:flex; flex-direction:column; gap:4px;" id="run-history-list">
@@ -907,6 +911,145 @@
       });
     }
     window.__renderRunRows = renderRunRows;
+
+    // ---- 自己ベスト（全期間）----
+    if(allRunsSorted.length){
+      const longest = allRunsSorted.reduce((a,b) => ((a.distance?a.distance.qty:0) > (b.distance?b.distance.qty:0)) ? a : b);
+      const totalAllTime = allRunsSorted.reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
+
+      let fastestKm = null;
+      allRunsSorted.forEach(w=>{
+        if(w.route && w.route.length >= 2){
+          computeSplits(w.route).filter(s=>!s.partial).forEach(s=>{
+            if(fastestKm === null || s.timeSec < fastestKm) fastestKm = s.timeSec;
+          });
+        }
+      });
+
+      const grid = document.getElementById('personal-bests-grid');
+      grid.innerHTML = `
+        <div class="sitem"><div class="v">${longest.distance ? longest.distance.qty.toFixed(1) : '-'}km</div><div class="l">最長距離</div></div>
+        <div class="sitem"><div class="v">${fastestKm ? fmtPace(fastestKm/60).replace('/km','') : '-'}</div><div class="l">最速1kmラップ</div></div>
+        <div class="sitem"><div class="v">${totalAllTime.toFixed(0)}km</div><div class="l">総走行距離</div></div>
+      `;
+      document.getElementById('personal-bests-card').style.display = 'block';
+    }
+  }
+
+  // ---- GPSルートから1kmラップを計算（RUNALYZE/Strava方式）----
+  function haversineKm(lat1, lon1, lat2, lon2){
+    const R = 6371;
+    const dLat = (lat2-lat1) * Math.PI/180;
+    const dLon = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  function parseRouteDate(s){ return new Date(String(s).replace(' ', 'T')); }
+
+  function computeSplits(route){
+    if(!route || route.length < 2) return [];
+    const pts = [...route].sort((a,b) => parseRouteDate(a.date) - parseRouteDate(b.date));
+    const splits = [];
+    let cumDist = 0, nextBoundary = 1, splitStartTime = parseRouteDate(pts[0].date);
+    for(let i=1; i<pts.length; i++){
+      const prev = pts[i-1], curr = pts[i];
+      const segDist = haversineKm(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+      const segTime = (parseRouteDate(curr.date) - parseRouteDate(prev.date)) / 1000; // 秒
+      if(segDist <= 0 || !isFinite(segDist)) continue;
+      let distSoFarInSeg = 0;
+      while(cumDist + segDist - distSoFarInSeg >= nextBoundary && cumDist < nextBoundary){
+        const remainInSeg = nextBoundary - cumDist;
+        const fraction = remainInSeg / segDist;
+        const crossTime = new Date(parseRouteDate(prev.date).getTime() + fraction * segTime * 1000);
+        splits.push({ km: nextBoundary, timeSec: (crossTime - splitStartTime)/1000 });
+        splitStartTime = crossTime;
+        cumDist = nextBoundary;
+        nextBoundary += 1;
+      }
+      cumDist += segDist;
+    }
+    // 最後の端数区間
+    const lastTime = parseRouteDate(pts[pts.length-1].date);
+    const leftover = cumDist - (nextBoundary - 1);
+    if(leftover > 0.15){
+      splits.push({ km: nextBoundary - 1 + leftover, timeSec: (lastTime - splitStartTime)/1000, partial: true });
+    }
+    return splits;
+  }
+
+  function renderSplits(w){
+    const container = document.getElementById('run-splits-container');
+    if(!w.route || w.route.length < 2){
+      container.innerHTML = `<div class="modal-note">ルートデータがないためラップは計算できません（屋内ランやルート記録なしの場合）。</div>`;
+      return;
+    }
+    const splits = computeSplits(w.route);
+    if(!splits.length){
+      container.innerHTML = `<div class="modal-note">ラップを計算するにはデータが不足しています。</div>`;
+      return;
+    }
+    const paces = splits.map(s => s.partial ? (s.timeSec/60)/s.km : s.timeSec/60);
+    const minPace = Math.min(...paces), maxPace = Math.max(...paces);
+    const barsHtml = splits.map((s,i)=>{
+      const pace = paces[i];
+      const h = maxPace > minPace ? 20 + ((maxPace - pace)/(maxPace - minPace)) * 60 : 50;
+      const color = pace <= (minPace+maxPace)/2 ? 'var(--good)' : 'var(--warn)';
+      return `<div style="display:flex; flex-direction:column; align-items:center; gap:4px; flex:1;">
+        <div style="width:100%; height:80px; display:flex; align-items:flex-end;">
+          <div style="width:100%; height:${h}px; background:${color}; border-radius:4px 4px 0 0;"></div>
+        </div>
+        <div style="font-size:9px; color:var(--sub);">${s.partial ? s.km.toFixed(1) : s.km}</div>
+      </div>`;
+    }).join('');
+
+    const rows = splits.map(s=>{
+      const m = Math.floor(s.timeSec/60), sec = Math.round(s.timeSec%60);
+      const label = s.partial ? `${s.km.toFixed(2)}km（端数）` : `${s.km}km`;
+      const pace = s.partial ? fmtPace((s.timeSec/60)/s.km) : fmtPace(s.timeSec/60);
+      return `<div class="logrow" style="padding:6px 0;"><span class="d">${label}</span><span class="m"></span><span class="v">${m}:${String(sec).padStart(2,'0')}（${pace}）</span></div>`;
+    }).join('');
+
+    // ネガティブ/ポジティブスプリット判定
+    const fullSplits = splits.filter(s => !s.partial);
+    let splitNote = '';
+    if(fullSplits.length >= 4){
+      const half = Math.floor(fullSplits.length/2);
+      const firstHalfAvg = fullSplits.slice(0, half).reduce((a,s)=>a+s.timeSec,0) / half;
+      const secondHalfAvg = fullSplits.slice(half).reduce((a,s)=>a+s.timeSec,0) / (fullSplits.length - half);
+      const diff = firstHalfAvg - secondHalfAvg;
+      if(diff > 5){
+        splitNote = `後半の方が平均${Math.round(diff)}秒/km速い、ネガティブスプリットです。ペース配分が理想的でした。`;
+      } else if(diff < -5){
+        splitNote = `後半の方が平均${Math.round(-diff)}秒/km遅い、ポジティブスプリットです。序盤を少し抑えると走りきりやすくなります。`;
+      } else {
+        splitNote = `前半・後半でペースの差がほとんどなく、安定したペース配分でした。`;
+      }
+    }
+
+    container.innerHTML = `
+      <div style="display:flex; gap:4px; margin-bottom:14px;">${barsHtml}</div>
+      <div style="display:flex; flex-direction:column;">${rows}</div>
+      ${splitNote ? `<div class="modal-note" style="margin-top:12px;">${splitNote}</div>` : ''}
+    `;
+  }
+
+  function renderRouteShape(w){
+    const el = document.getElementById('run-route-shape');
+    if(!el) return;
+    if(!w.route || w.route.length < 2){ el.innerHTML = ''; return; }
+    const lats = w.route.map(p=>p.latitude), lons = w.route.map(p=>p.longitude);
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+    const latRange = (maxLat-minLat) || 0.0001, lonRange = (maxLon-minLon) || 0.0001;
+    const pad = 10, W = 280, H = 140;
+    const points = w.route.map(p=>{
+      const x = pad + ((p.longitude - minLon)/lonRange) * (W - pad*2);
+      const y = (H - pad) - ((p.latitude - minLat)/latRange) * (H - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; background:var(--bg); border-radius:12px;">
+      <polyline points="${points}" fill="none" stroke="var(--good)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
   }
 
   function openRunDetail(idx){
@@ -940,7 +1083,12 @@
         <div class="sitem"><div class="v">${elevation ?? '-'}</div><div class="l">昇った階数</div></div>
         <div class="sitem"><div class="v">${classifyRunTypeGlobal(w).label}</div><div class="l">種別</div></div>
       </div>
+      <div id="run-route-shape" style="margin-top:16px;"></div>
+      <div class="section-title" style="margin:20px 0 10px; padding:0;"><h2>ラップ（1kmごと）</h2></div>
+      <div id="run-splits-container"></div>
     `;
+    renderSplits(w);
+    renderRouteShape(w);
     openModal('modal-run-detail');
   }
   function classifyRunTypeGlobal(w){
