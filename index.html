@@ -222,7 +222,9 @@
   .modal-note{font-size:11.5px; color:var(--low); line-height:1.6; margin-top:12px;}
   .progress-hint{margin-top:14px; padding:12px 14px; background:var(--warn-dim); border-radius:12px; font-size:12.5px; color:var(--warn); line-height:1.6; display:none;}
   .progress-hint.show{display:block;}
-  .recent-log-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--sub); padding:6px 0; border-top:1px solid var(--line);}
+  .recent-log-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--sub); padding:6px 0; border-top:1px solid var(--line); align-items:center;}
+  .log-del-btn{background:none; border:none; color:var(--warn); font-size:12px; padding:4px 6px; flex-shrink:0; margin-left:8px;}
+  .logrow-editable{display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-top:1px solid var(--line);}
 </style>
 </head>
 <body>
@@ -430,14 +432,12 @@
         <h2>栄養（過去30日）</h2>
         <div class="nutri-sub">日本人の食事摂取基準を目安に評価。◎良好 ○概ね良好 △やや不足</div>
         <div id="nutrition-rows">
-          <div class="nrow"><span class="n">タンパク質</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">食物繊維</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">カルシウム</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">鉄</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">ビタミンD</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">塩分</span><span class="s mid">-</span></div>
-          <div class="nrow"><span class="n">ビタミンB群</span><span class="s mid">-</span></div>
+          <div class="nrow"><span class="n">カロリー（1日平均）</span><span class="s mid" id="nut-kcal">-</span></div>
+          <div class="nrow"><span class="n">タンパク質（1日平均）</span><span class="s mid" id="nut-protein">-</span></div>
+          <div class="nrow"><span class="n">脂質（1日平均）</span><span class="s mid" id="nut-fat">-</span></div>
+          <div class="nrow"><span class="n">炭水化物（1日平均）</span><span class="s mid" id="nut-carbs">-</span></div>
         </div>
+        <div class="modal-note" id="nutrition-source-note" style="margin-top:10px;">あすけん（Apple Health経由）と連携すると自動反映されます。</div>
         <div class="unknown-note" id="nutrition-status-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。</div>
       </div>
 
@@ -765,6 +765,14 @@
       if(bmiP && bmiP.qty != null) document.getElementById('stat-bmi').textContent = bmiP.qty.toFixed(1);
       if(bfP && bfP.qty != null) document.getElementById('stat-bodyfat').textContent = bfP.qty.toFixed(1) + '%';
 
+      // ---- あすけん由来の栄養マクロ（カロリー・タンパク質・脂質・炭水化物）----
+      window.__nutritionMetrics = {
+        kcal: findMetric(metrics, ['dietary_energy']),
+        protein: findMetric(metrics, ['protein']),
+        fat: findMetric(metrics, ['total_fat']),
+        carbs: findMetric(metrics, ['carbohydrates']),
+      };
+
       window.__lastWorkerWeightData = weight ? weight.data : [];
       updateWeightViews(window.__lastWorkerWeightData);
 
@@ -796,7 +804,7 @@
       date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ'
     })).filter(p => !isNaN(p.date) && p.kg != null);
     const manualPoints = loadLogsSafe('hc_weight_logs').map(l => ({
-      date: new Date(l.ts), kg: l.kg, source: '手入力'
+      date: new Date(l.ts), kg: l.kg, source: '手入力', ts: l.ts
     }));
     const all = [...workerPoints, ...manualPoints].sort((a,b) => a.date - b.date);
     if(!all.length) return;
@@ -827,13 +835,19 @@
       ? `${chartPoints.length}件の記録から作成。${diff < -0.1 ? '緩やかな減少傾向です。' : diff > 0.1 ? '緩やかな増加傾向です。' : 'ほぼ横ばいです。'}`
       : 'まだ記録が少ないため、傾向の判断には時間がかかります。';
 
-    // 体重ログ一覧（最新5件）
+    // 体重ログ一覧（最新5件。手入力分のみ削除可能）
     const recent5 = [...all].reverse().slice(0,5);
     document.getElementById('weight-log-count').textContent = `直近${recent5.length}件`;
-    document.getElementById('weight-log-list').innerHTML = recent5.map((p,i)=>{
+    const logListEl = document.getElementById('weight-log-list');
+    logListEl.innerHTML = recent5.map((p,i)=>{
       const m = p.date.getMonth()+1, d = p.date.getDate();
-      return `<div class="logrow" style="opacity:${(1-i*0.15).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m">${p.source}</span><span class="v">${p.kg.toFixed(1)}kg</span></div>`;
+      const delBtn = p.ts ? `<button class="log-del-btn" data-del-ts="${p.ts}">削除</button>` : '';
+      return `<div class="logrow-editable" style="opacity:${(1-i*0.15).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m">${p.source}</span><span class="v">${p.kg.toFixed(1)}kg</span>${delBtn}</div>`;
     }).join('');
+    attachDeleteHandlers(logListEl, 'hc_weight_logs', ()=>{
+      updateWeightViews(window.__lastWorkerWeightData || []);
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
   }
 
   // ---- 今日画面: コンディション・脚への負荷を実データから判定 ----
@@ -855,8 +869,98 @@
     }
   }
 
+  // ---- あすけん由来のマクロ栄養素を集計・評価（過去N日の1日平均）----
+  function computeMacroNutrition(since){
+    const m = window.__nutritionMetrics;
+    const gradeEl = (id) => document.getElementById(id);
+    if(!m || (!m.kcal && !m.protein && !m.fat && !m.carbs)){
+      return { daysCovered: 0, summary: '' };
+    }
+    function dailyAverage(metric){
+      if(!metric || !metric.data) return { avg: null, days: 0 };
+      const byDate = {};
+      metric.data.forEach(p=>{
+        const d = new Date(p.date.replace(' ', 'T'));
+        if(d < since) return;
+        const key = d.toDateString();
+        byDate[key] = (byDate[key] || 0) + (p.qty || 0);
+      });
+      const days = Object.keys(byDate);
+      if(!days.length) return { avg: null, days: 0 };
+      const avg = days.reduce((s,k)=>s+byDate[k],0) / days.length;
+      return { avg, days: days.length };
+    }
+
+    const kcalR = dailyAverage(m.kcal);
+    const proteinR = dailyAverage(m.protein);
+    const fatR = dailyAverage(m.fat);
+    const carbsR = dailyAverage(m.carbs);
+    const daysCovered = Math.max(kcalR.days, proteinR.days, fatR.days, carbsR.days);
+    if(!daysCovered) return { daysCovered: 0, summary: '' };
+
+    const setRow = (id, val, unit, grade) => {
+      const el = gradeEl(id);
+      if(!el) return;
+      el.textContent = val != null ? `${Math.round(val)}${unit}` : '-';
+      el.className = 's ' + (grade === 'good' ? 'good' : grade === 'warn' ? 'warn' : 'mid');
+    };
+    // 簡易的な目安（成人の一般的な参考値。個別の目標体重・活動量には未対応）
+    const proteinLevel = proteinR.avg == null ? 'unknown' : proteinR.avg >= 60 ? 'good' : proteinR.avg >= 40 ? 'mid' : 'low';
+    const kcalLevel = kcalR.avg == null ? 'unknown' : (kcalR.avg >= 1400 && kcalR.avg <= 2600) ? 'ok' : 'watch';
+
+    setRow('nut-kcal', kcalR.avg, 'kcal', kcalLevel === 'ok' ? 'good' : 'warn');
+    setRow('nut-protein', proteinR.avg, 'g', proteinLevel === 'good' ? 'good' : proteinLevel === 'mid' ? 'mid' : 'warn');
+    setRow('nut-fat', fatR.avg, 'g', 'mid');
+    setRow('nut-carbs', carbsR.avg, 'g', 'mid');
+
+    const summaryParts = [];
+    if(kcalR.avg != null) summaryParts.push(`平均${Math.round(kcalR.avg)}kcal`);
+    if(proteinR.avg != null) summaryParts.push(`タンパク質${Math.round(proteinR.avg)}g`);
+
+    return { daysCovered, proteinLevel, kcalLevel, summary: summaryParts.join('、') + '。' };
+  }
+
   function loadLogsSafe(key){
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  }
+
+  function setInv(barId, countId, count){
+    const bar = document.getElementById(barId), el = document.getElementById(countId);
+    if(!bar || !el) return;
+    const pct = Math.min(100, count * 33);
+    if(count > 0){
+      bar.style.background = 'var(--good)';
+      bar.style.width = Math.max(pct, 15) + '%';
+      el.classList.remove('priority');
+      el.textContent = `${count}回`;
+    } else {
+      bar.style.background = 'var(--warn)';
+      bar.style.width = '8%';
+      el.classList.add('priority');
+      el.textContent = '0回・優先';
+    }
+  }
+
+  // ---- 運動バランス（直近7日）: Apple Healthのワークアウト＋アプリ内の手入力筋トレ記録を合算 ----
+  function recomputeExerciseBalance(){
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const sorted = window.__latestWorkoutsSorted || [];
+    const isRun = window.__isRun || (n => /ラン|run|ランニング/i.test(n||''));
+    const isSpeed = window.__isSpeed || (n => /インターバル|interval|スピード/i.test(n||''));
+    const recent = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+
+    const runCount = recent.filter(w => isRun(w.name) && !isSpeed(w.name)).length;
+    const speedCount = recent.filter(w => isSpeed(w.name)).length;
+
+    // 筋トレ: アプリ内記録（日単位でカウント。1日に複数種目やっても1回とする）
+    const strengthLogs = loadLogsSafe('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo);
+    const strengthDaySet = new Set(strengthLogs.map(l => new Date(l.ts).toDateString()));
+    const strengthCount = strengthDaySet.size;
+
+    setInv('inv-bar-run', 'inv-count-run', runCount);
+    setInv('inv-bar-strength', 'inv-count-strength', strengthCount);
+    setInv('inv-bar-speed', 'inv-count-speed', speedCount);
   }
 
   // ---- 健康画面: 項目別スコア・総合評価・改善フォーカスを実データから算出 ----
@@ -927,18 +1031,19 @@
       setGrade('body', '-', '体重の記録が少ないため判断できません。');
     }
 
-    // 栄養: 記録率で判定（内容の質はAI連携なしでは評価不可）
-    const mealDaysCovered = new Set(mealLogsInWindow.map(l => l.date)).size;
-    const nutritionNote = document.getElementById('nutrition-status-note');
-    if(mealLogsInWindow.length === 0){
+    // 栄養: あすけん経由のマクロ栄養素（カロリー・タンパク質・脂質・炭水化物）があれば実データで評価
+    const macroResult = computeMacroNutrition(since);
+    const nutritionNote = document.getElementById('nutrition-source-note');
+    if(macroResult.daysCovered > 0){
+      const grade = macroResult.proteinLevel === 'low' ? 'C' : macroResult.kcalLevel === 'ok' ? 'A' : 'B';
+      setGrade('nutrition', grade, `あすけん経由で${macroResult.daysCovered}日分のカロリー・三大栄養素を取得。${macroResult.summary}`);
+      if(nutritionNote) nutritionNote.textContent = `あすけん経由で${macroResult.daysCovered}日分のデータを反映中。`;
+    } else if(mealLogsInWindow.length === 0){
       setGrade('nutrition', '-', '食事の記録がないため判断できません。');
+      if(nutritionNote) nutritionNote.textContent = 'あすけんと連携すると自動反映されます。';
     } else {
-      setGrade('nutrition', '-', `${mealLogsInWindow.length}件の食事記録がありますが、栄養素の推定にはAI連携が必要です（未設定）。`);
-    }
-    if(nutritionNote){
-      nutritionNote.textContent = mealLogsInWindow.length > 0
-        ? `${mealLogsInWindow.length}件の食事記録があります。栄養素の内訳を見るにはAI連携（未設定）が必要です。`
-        : '記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。';
+      setGrade('nutrition', '-', `${mealLogsInWindow.length}件の食事記録がありますが、あすけん連携がまだ反映されていません。`);
+      if(nutritionNote) nutritionNote.textContent = `${mealLogsInWindow.length}件の食事記録があります。あすけんと連携すると自動反映されます。`;
     }
 
     // 総合評価・改善フォーカス
@@ -983,42 +1088,21 @@
   function updateWorkouts(workouts){
     // 新しい順に並べる
     const sorted = [...workouts].sort((a,b) => new Date(b.start) - new Date(a.start));
-
-    // ---- 運動バランス（直近7日のカテゴリ別回数）----
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
-    const recent = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+    window.__latestWorkoutsSorted = sorted;
 
     const isRun = n => /ラン|run|ランニング/i.test(n||'');
-    const isStrength = n => /筋トレ|strength|weight|トレーニング/i.test(n||'');
     const isSpeed = n => /インターバル|interval|スピード/i.test(n||'');
+    window.__isRun = isRun;
+    window.__isSpeed = isSpeed;
 
-    const runCount = recent.filter(w => isRun(w.name) && !isSpeed(w.name)).length;
-    const strengthCount = recent.filter(w => isStrength(w.name)).length;
-    const speedCount = recent.filter(w => isSpeed(w.name)).length;
-
-    const setInv = (barId, countId, count, label) => {
-      const bar = document.getElementById(barId), el = document.getElementById(countId);
-      if(!bar || !el) return;
-      const pct = Math.min(100, count * 33);
-      if(count > 0){
-        bar.style.background = 'var(--good)';
-        bar.style.width = Math.max(pct, 15) + '%';
-        el.classList.remove('priority');
-        el.textContent = `${count}回`;
-      } else {
-        bar.style.background = 'var(--warn)';
-        bar.style.width = '8%';
-        el.classList.add('priority');
-        el.textContent = '0回・優先';
-      }
-    };
-    setInv('inv-bar-run', 'inv-count-run', runCount);
-    setInv('inv-bar-strength', 'inv-count-strength', strengthCount);
-    setInv('inv-bar-speed', 'inv-count-speed', speedCount);
+    recomputeExerciseBalance();
 
     // ---- 今日画面: 最近の運動量 ----
-    const totalRecent = recent.length;
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const recentWorkouts = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+    const strengthDays = new Set(loadLogsSafe('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo).map(l => new Date(l.ts).toDateString()));
+    const totalRecent = recentWorkouts.length + strengthDays.size;
     const activityEl = document.getElementById('stat-activity');
     if(activityEl){
       activityEl.textContent = totalRecent >= 4 ? '多い' : totalRecent >= 2 ? '普通' : totalRecent >= 1 ? '少なめ' : '低い';
@@ -1331,6 +1415,22 @@
     return `${d.getMonth()+1}/${d.getDate()}`;
   }
 
+  // ---- 記録の削除（共通）----
+  function deleteLogByTs(key, ts){
+    const logs = loadLogs(key);
+    saveLogs(key, logs.filter(l => l.ts !== ts));
+  }
+  function attachDeleteHandlers(containerEl, key, onAfterDelete){
+    containerEl.querySelectorAll('[data-del-ts]').forEach(btn=>{
+      btn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const ts = Number(btn.dataset.delTs);
+        deleteLogByTs(key, ts);
+        onAfterDelete();
+      });
+    });
+  }
+
   // ---- モーダル開閉 ----
   function openModal(id){ document.getElementById(id).classList.add('active'); }
   function closeModal(id){ document.getElementById(id).classList.remove('active'); }
@@ -1364,8 +1464,14 @@
   // ---- 体重記録 ----
   function renderWeightRecent(){
     const logs = loadLogs(STORAGE_KEYS.weight).slice(-5).reverse();
-    document.getElementById('weight-recent-logs').innerHTML = logs.map(l =>
-      `<div class="recent-log-row"><span>${l.date}</span><span>${l.kg}kg</span></div>`).join('');
+    const el = document.getElementById('weight-recent-logs');
+    el.innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date} ${l.kg}kg</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`).join('');
+    attachDeleteHandlers(el, STORAGE_KEYS.weight, ()=>{
+      renderWeightRecent();
+      updateWeightViews(window.__lastWorkerWeightData || []);
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
   }
   document.getElementById('submit-weight').addEventListener('click', ()=>{
     const val = parseFloat(document.getElementById('input-weight').value);
@@ -1394,8 +1500,16 @@
   function renderStrengthRecent(ex){
     ex = ex || strengthExerciseChip.get();
     const logs = loadLogs(STORAGE_KEYS.strength).filter(l => l.exercise === ex).slice(-5).reverse();
-    document.getElementById('strength-recent-logs').innerHTML = logs.map(l =>
-      `<div class="recent-log-row"><span>${l.date} ${l.exercise}</span><span>${l.reps.join(' ')}（計${l.reps.reduce((a,b)=>a+b,0)}）</span></div>`).join('');
+    const el = document.getElementById('strength-recent-logs');
+    el.innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date} ${l.reps.join(' ')}（計${l.reps.reduce((a,b)=>a+b,0)}）</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`).join('');
+    attachDeleteHandlers(el, STORAGE_KEYS.strength, ()=>{
+      renderStrengthRecent(ex);
+      buildStrengthRecommendations();
+      renderMuscleTab();
+      recomputeExerciseBalance();
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
     document.getElementById('strength-progress-hint').classList.remove('show');
   }
   document.getElementById('strength-exercise-chips').addEventListener('chipchange', (e)=> renderStrengthRecent(e.detail));
@@ -1428,14 +1542,21 @@
     renderStrengthRecent(exercise);
     buildStrengthRecommendations();
     renderMuscleTab();
+    recomputeExerciseBalance();
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
   });
 
   // ---- 食事記録 ----
   function renderMealRecent(){
     const logs = loadLogs(STORAGE_KEYS.meal).slice(-5).reverse();
-    document.getElementById('meal-recent-logs').innerHTML = logs.map(l =>
-      `<div class="recent-log-row"><span>${l.date} ${l.slot}</span><span>${l.text.length > 14 ? l.text.slice(0,14)+'…' : l.text}</span></div>`).join('');
+    const el = document.getElementById('meal-recent-logs');
+    el.innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date} ${l.slot}: ${l.text.length > 14 ? l.text.slice(0,14)+'…' : l.text}</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`).join('');
+    attachDeleteHandlers(el, STORAGE_KEYS.meal, ()=>{
+      renderMealRecent();
+      renderMealLogSection();
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
   }
   document.getElementById('submit-meal').addEventListener('click', async ()=>{
     const text = document.getElementById('input-meal').value.trim();
@@ -1557,10 +1678,16 @@
           else if(l.total < prev.total) trend = '<span style="color:var(--warn);">↓</span>';
           else trend = '<span style="color:var(--sub);">→</span>';
         }
-        return `<div class="logrow" style="opacity:${(1 - i*0.12).toFixed(2)};"><span class="d">${l.date}</span><span class="m">${l.reps.join(' ')}</span><span class="v">計${l.total} ${trend}</span></div>`;
+        return `<div class="logrow-editable" style="opacity:${(1 - i*0.12).toFixed(2)};"><span class="d">${l.date}</span><span class="m">${l.reps.join(' ')}</span><span class="v">計${l.total} ${trend}</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`;
       }).join('');
       return `<div class="chart-card"><div class="chart-head"><h2>${ex}</h2><span>直近${exLogs.length}回</span></div><div style="display:flex; flex-direction:column; gap:10px;">${rows}</div></div>`;
     }).join('') || `<div class="soon">まだ筋トレの記録がありません。</div>`;
+    attachDeleteHandlers(container, STORAGE_KEYS.strength, ()=>{
+      renderMuscleTab();
+      buildStrengthRecommendations();
+      recomputeExerciseBalance();
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
   }
   renderMuscleTab();
   document.querySelector('#change-tabs [data-panel="muscle"]').addEventListener('click', renderMuscleTab);
@@ -1578,8 +1705,12 @@
     countEl.textContent = `直近${Math.min(logs.length, 20)}件`;
     listEl.innerHTML = logs.slice(0, 20).map(l=>{
       const est = l.estimate ? `<span style="color:var(--sub); font-size:11px;"> ・約${l.estimate.kcal}kcal（推定）</span>` : '';
-      return `<div class="nrow"><span class="n">${l.date} ${l.slot}: ${l.text}${est}</span></div>`;
+      return `<div class="nrow" style="display:flex; justify-content:space-between; align-items:center;"><span class="n">${l.date} ${l.slot}: ${l.text}${est}</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`;
     }).join('');
+    attachDeleteHandlers(listEl, STORAGE_KEYS.meal, ()=>{
+      renderMealLogSection();
+      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    });
   }
   renderMealLogSection();
   document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', ()=>{
@@ -1590,6 +1721,7 @@
   // フォールバック: 実データ取得が遅い/失敗しても、手入力ログだけでスコアを試算しておく
   computeHealthScores(7);
   updateWeightViews([]);
+  recomputeExerciseBalance();
 </script>
 
 </body>
