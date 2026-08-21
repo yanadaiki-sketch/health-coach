@@ -274,18 +274,18 @@
         <div class="inv-sub">曜日で決めず、直近7〜14日で必要な刺激が揃っているかを見ます。</div>
         <div class="inv-row">
           <div class="inv-name">Easy Run</div>
-          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:66%; background:var(--good);"></div></div>
-          <div class="inv-count">2回</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" id="inv-bar-run" style="width:66%; background:var(--good);"></div></div>
+          <div class="inv-count" id="inv-count-run">2回</div>
         </div>
         <div class="inv-row">
           <div class="inv-name">筋トレ</div>
-          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:8%; background:var(--warn);"></div></div>
-          <div class="inv-count priority">0回・優先</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" id="inv-bar-strength" style="width:8%; background:var(--warn);"></div></div>
+          <div class="inv-count priority" id="inv-count-strength">0回・優先</div>
         </div>
         <div class="inv-row">
           <div class="inv-name">スピード練習</div>
-          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:8%; background:var(--warn);"></div></div>
-          <div class="inv-count priority">0回・優先</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" id="inv-bar-speed" style="width:8%; background:var(--warn);"></div></div>
+          <div class="inv-count priority" id="inv-count-speed">0回・優先</div>
         </div>
       </div>
     </section>
@@ -401,8 +401,8 @@
       <div class="panel" id="panel-run">
         <div class="hero">
           <div class="hero-label">5kmベスト（直近）</div>
-          <div class="hero-value">24<span class="unit">分</span>18<span class="unit">秒</span></div>
-          <div class="hero-delta">↓ 42秒 / 3ヶ月</div>
+          <div class="hero-value" id="run-hero-value">24<span class="unit">分</span>18<span class="unit">秒</span></div>
+          <div class="hero-delta" id="run-hero-delta">↓ 42秒 / 3ヶ月</div>
         </div>
         <div class="goal-card">
           <div class="goal-top"><h2>目標</h2><button class="goal-edit" data-goal="run">編集</button></div>
@@ -433,7 +433,7 @@
         </div>
         <div class="chart-card">
           <div class="chart-head"><h2>ラン履歴</h2><span>直近5件</span></div>
-          <div style="display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; flex-direction:column; gap:12px;" id="run-history-list">
             <div class="logrow"><span class="d">8/20</span><span class="m">Easy Run 5.02km</span><span class="v">6:15/km・154bpm</span></div>
             <div class="logrow" style="opacity:0.7;"><span class="d">8/17</span><span class="m">Interval 6×2min</span><span class="v">4:58/km・168bpm</span></div>
             <div class="logrow" style="opacity:0.5;"><span class="d">8/14</span><span class="m">Easy Run 5.10km</span><span class="v">6:28/km・151bpm</span></div>
@@ -650,9 +650,93 @@
       const label = updatedAt ? `実データ反映済み（${updatedAt.getMonth()+1}/${updatedAt.getDate()} ${String(updatedAt.getHours()).padStart(2,'0')}:${String(updatedAt.getMinutes()).padStart(2,'0')}更新）` : '実データ反映済み';
       setStatus('live', label);
 
+      // ---- ワークアウト（運動バランス・ラン履歴・5km） ----
+      const workouts = json.data && json.data.workouts ? json.data.workouts : [];
+      if(workouts.length){
+        updateWorkouts(workouts);
+      }
+
     }catch(e){
       setStatus('error', 'データ取得に失敗したためサンプルを表示中');
       console.error(e);
+    }
+  }
+
+  function fmtDateShort(dateStr){
+    // "2026-08-20 10:00:00 +0900" のような形式からM/Dを作る
+    const d = new Date(dateStr.replace(' ', 'T'));
+    if(isNaN(d)) return dateStr;
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  }
+  function fmtPace(minPerKm){
+    const m = Math.floor(minPerKm), s = Math.round((minPerKm-m)*60);
+    return `${m}:${String(s).padStart(2,'0')}/km`;
+  }
+
+  function updateWorkouts(workouts){
+    // 新しい順に並べる
+    const sorted = [...workouts].sort((a,b) => new Date(b.start) - new Date(a.start));
+
+    // ---- 運動バランス（直近7日のカテゴリ別回数）----
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const recent = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+
+    const isRun = n => /ラン|run|ランニング/i.test(n||'');
+    const isStrength = n => /筋トレ|strength|weight|トレーニング/i.test(n||'');
+    const isSpeed = n => /インターバル|interval|スピード/i.test(n||'');
+
+    const runCount = recent.filter(w => isRun(w.name) && !isSpeed(w.name)).length;
+    const strengthCount = recent.filter(w => isStrength(w.name)).length;
+    const speedCount = recent.filter(w => isSpeed(w.name)).length;
+
+    const setInv = (barId, countId, count, label) => {
+      const bar = document.getElementById(barId), el = document.getElementById(countId);
+      if(!bar || !el) return;
+      const pct = Math.min(100, count * 33);
+      if(count > 0){
+        bar.style.background = 'var(--good)';
+        bar.style.width = Math.max(pct, 15) + '%';
+        el.classList.remove('priority');
+        el.textContent = `${count}回`;
+      } else {
+        bar.style.background = 'var(--warn)';
+        bar.style.width = '8%';
+        el.classList.add('priority');
+        el.textContent = '0回・優先';
+      }
+    };
+    setInv('inv-bar-run', 'inv-count-run', runCount);
+    setInv('inv-bar-strength', 'inv-count-strength', strengthCount);
+    setInv('inv-bar-speed', 'inv-count-speed', speedCount);
+
+    // ---- 今日画面: 最近の運動量 ----
+    const totalRecent = recent.length;
+    const activityEl = document.getElementById('stat-activity');
+    if(activityEl){
+      activityEl.textContent = totalRecent >= 4 ? '多い' : totalRecent >= 2 ? '普通' : totalRecent >= 1 ? '少なめ' : '低い';
+    }
+
+    // ---- ラン履歴（直近5件）----
+    const runs = sorted.filter(w => isRun(w.name)).slice(0, 5);
+    if(runs.length){
+      const list = document.getElementById('run-history-list');
+      list.innerHTML = runs.map((w, i) => {
+        const distKm = w.distance ? w.distance.qty.toFixed(2) : '?';
+        const paceStr = (w.distance && w.duration) ? fmtPace((w.duration/60) / w.distance.qty) : '';
+        const opacity = i === 0 ? '1' : (1 - i*0.15).toFixed(2);
+        return `<div class="logrow" style="opacity:${opacity};"><span class="d">${fmtDateShort(w.start)}</span><span class="m">${w.name} ${distKm}km</span><span class="v">${paceStr}</span></div>`;
+      }).join('');
+
+      // 5kmベストタイムのヒーロー値も更新（距離4.5km以上のランから最速ペースを概算）
+      const longRuns = runs.filter(w => w.distance && w.distance.qty >= 4.5);
+      if(longRuns.length){
+        const best = longRuns.reduce((a,b) => (a.duration/a.distance.qty < b.duration/b.distance.qty) ? a : b);
+        const estSec = Math.round((best.duration/best.distance.qty) * 5); // 5km換算の概算
+        const mm = Math.floor(estSec/60), ss = estSec%60;
+        document.getElementById('run-hero-value').innerHTML = `${mm}<span class="unit">分</span>${String(ss).padStart(2,'0')}<span class="unit">秒</span>`;
+        document.getElementById('run-current').textContent = `${mm}:${String(ss).padStart(2,'0')}`;
+      }
     }
   }
 
