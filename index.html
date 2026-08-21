@@ -200,6 +200,20 @@
 
   /* ---------- bottom nav ---------- */
   .bottom-nav{flex-shrink:0; display:flex; background:var(--card-raised); border-top:1px solid var(--line); padding:10px 6px calc(10px + env(safe-area-inset-bottom));}
+
+  /* お祝いトースト */
+  .celebrate-toast{position:fixed; top:16px; left:50%; transform:translateX(-50%) translateY(-120%); width:calc(100% - 32px); max-width:448px; background:linear-gradient(135deg, var(--good-dim), var(--card-raised)); border:1px solid var(--good-dim); border-radius:16px; padding:16px 18px; z-index:200; box-shadow:0 8px 30px rgba(0,0,0,0.4); transition:transform .4s cubic-bezier(.34,1.56,.64,1); display:flex; align-items:center; gap:12px;}
+  .celebrate-toast.show{transform:translateX(-50%) translateY(0);}
+  .celebrate-toast .icon{font-size:24px; flex-shrink:0;}
+  .celebrate-toast .txt b{display:block; font-size:14px; color:var(--good); margin-bottom:2px;}
+  .celebrate-toast .txt p{font-size:12.5px; color:var(--text); line-height:1.5;}
+
+  /* カレンダーヒートマップ */
+  .heat-cell{aspect-ratio:1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--sub); background:var(--bg); border:1px solid var(--line);}
+  .heat-cell.future{opacity:0.3;}
+  .heat-cell.lv1{background:var(--good-dim); color:var(--text); border-color:var(--good-dim);}
+  .heat-cell.lv2{background:rgba(111,162,135,0.55); color:var(--bg); border-color:transparent;}
+  .heat-cell.lv3{background:var(--good); color:var(--bg); border-color:transparent; font-weight:700;}
   .bottom-nav button{flex:1; background:none; border:none; color:var(--sub); font-size:12px; font-weight:700; padding:8px 4px; position:relative;}
   .bottom-nav button.active{color:var(--good);}
   .bottom-nav button.active::before{content:""; position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--good);}
@@ -300,6 +314,10 @@
 </div>
 
 <div class="app">
+  <div class="celebrate-toast" id="celebrate-toast">
+    <span class="icon">🎉</span>
+    <div class="txt"><b id="celebrate-title">達成！</b><p id="celebrate-body"></p></div>
+  </div>
   <main id="content">
 
     <!-- ============ 今日 ============ -->
@@ -313,11 +331,13 @@
       <div class="condition">
         <div class="condition-label">今日のコンディション</div>
         <div class="condition-status"><span class="dot"></span><span id="condition-text">良好</span></div>
-        <div class="condition-stats">
+        <div class="condition-stats" style="grid-template-columns:repeat(4,1fr);">
           <div class="cstat"><div class="v" id="stat-sleep">7:04</div><div class="l">睡眠</div></div>
+          <div class="cstat"><div class="v" id="stat-steps">-</div><div class="l">歩数</div></div>
           <div class="cstat"><div class="v" id="stat-activity">普通</div><div class="l">最近の運動量</div></div>
           <div class="cstat"><div class="v" id="stat-legload">低い</div><div class="l">脚への負荷</div></div>
         </div>
+        <div class="modal-note" id="stat-hr-note" style="margin-top:12px; display:none;"></div>
       </div>
 
       <div class="section-title"><h2>今日使える時間・気分</h2></div>
@@ -413,6 +433,17 @@
         <div class="summary-note" id="summary-note">記録が蓄積すると、ここに総合評価が表示されます。</div>
       </div>
 
+      <div class="chart-card" id="weekly-digest-card">
+        <div class="chart-head"><h2>週次ダイジェスト</h2><span id="weekly-digest-range"></span></div>
+        <div id="weekly-digest-body"><div class="modal-note">記録が蓄積すると、先週との比較が表示されます。</div></div>
+      </div>
+
+      <div class="chart-card" id="heatmap-card">
+        <div class="chart-head"><h2>記録カレンダー</h2><span id="heatmap-month-label"></span></div>
+        <div id="heatmap-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;"></div>
+        <div class="modal-note" style="margin-top:10px;">色が濃いほど、その日に多くの記録（運動・食事・体重など）があります。</div>
+      </div>
+
       <div class="section-title"><h2>項目別スコア</h2></div>
       <div class="grid" id="score-grid">
         <div class="gitem"><div class="gitem-top"><span class="gitem-name">睡眠</span><span class="grade B" id="grade-sleep">-</span></div><div class="gitem-desc" id="grade-sleep-desc">データ収集中</div></div>
@@ -483,6 +514,7 @@
             <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
             <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
             <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="0" x2="320" y2="0" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4,3" id="weight-goal-line" style="display:none;"/>
             <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="weight-chart-line"/>
           </svg>
           <div class="chart-note" id="weight-chart-note">体重を記録するとここにグラフが表示されます。</div>
@@ -500,7 +532,37 @@
         </div>
       </div>
 
-      <div class="panel" id="panel-waist"><div class="soon">腹囲の推移・目標設定は近日対応予定です。</div></div>
+      <div class="panel" id="panel-waist">
+        <div class="hero">
+          <div class="hero-label">腹囲（直近）</div>
+          <div class="hero-value" id="waist-hero-value">-<span class="unit">cm</span></div>
+          <div class="hero-delta" id="waist-hero-delta">記録がありません</div>
+        </div>
+        <div class="goal-card">
+          <div class="goal-top"><h2>記録する</h2></div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="number" step="0.1" inputmode="decimal" class="field-input" id="input-waist" placeholder="例: 82.0" style="margin-bottom:0; flex:1;">
+            <button class="modal-submit" id="submit-waist" style="width:auto; padding:12px 20px; margin-top:0;">保存</button>
+          </div>
+          <div class="modal-note">Apple Healthから自動取得できないため、メジャーで測って手入力してください。おへその高さで測るのが一般的です。</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>腹囲推移</h2><span id="waist-chart-span">実測データなし</span></div>
+          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
+            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
+            <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="waist-chart-line"/>
+          </svg>
+          <div class="chart-note" id="waist-chart-note">腹囲を記録するとここにグラフが表示されます。</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>腹囲ログ</h2><span id="waist-log-count">直近5件</span></div>
+          <div style="display:flex; flex-direction:column; gap:4px;" id="waist-log-list">
+            <div class="soon">まだ記録がありません。</div>
+          </div>
+        </div>
+      </div>
       <div class="panel" id="panel-muscle">
         <div id="muscle-log-container" style="padding:0 20px;"></div>
       </div>
@@ -537,6 +599,15 @@
           <div class="sitem"><div class="v" id="stat-monthly-distance">42km</div><div class="l">月間走行距離</div></div>
           <div class="sitem"><div class="v" id="stat-easy-pace">6:48</div><div class="l">Easy Run平均</div></div>
           <div class="sitem"><div class="v" id="stat-run-freq">週2.4回</div><div class="l">走行頻度</div></div>
+        </div>
+        <div class="goal-card">
+          <div class="goal-top"><h2>今月の距離目標</h2><button class="goal-edit" data-goal="monthly-distance">編集</button></div>
+          <div class="goal-values">
+            <div class="side"><div class="v" id="monthly-distance-current">0km</div><div class="l">今月</div></div>
+            <div class="goal-bar-wrap"><div class="goal-bar-track"><div class="goal-bar-fill" id="monthly-distance-bar" style="width:0%;"></div></div></div>
+            <div class="side target"><div class="v" id="monthly-distance-target">未設定</div><div class="l">目標</div></div>
+          </div>
+          <div class="goal-note" id="monthly-distance-note">目標を設定すると、今月の進捗がここに表示されます。</div>
         </div>
         <div class="chart-card" id="personal-bests-card" style="display:none;">
           <div class="chart-head"><h2>自己ベスト</h2><span>全期間</span></div>
@@ -615,6 +686,17 @@
 
 <script>
   // ===== タブ（ボトムナビ）切り替え =====
+  // ===== お祝いトースト =====
+  let celebrateTimer = null;
+  function celebrate(title, body){
+    const toast = document.getElementById('celebrate-toast');
+    document.getElementById('celebrate-title').textContent = title;
+    document.getElementById('celebrate-body').textContent = body;
+    toast.classList.add('show');
+    if(celebrateTimer) clearTimeout(celebrateTimer);
+    celebrateTimer = setTimeout(()=> toast.classList.remove('show'), 4500);
+  }
+
   const contextByView = { today:'context-today', ai:'context-ai' };
   document.querySelectorAll('.bottom-nav button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -659,34 +741,48 @@
   });
 
   // ===== 変化: 目標編集（体重） =====
-  document.querySelector('[data-goal="weight"]').addEventListener('click', ()=>{
-    const input = prompt('目標体重を入力してください（kg）', '65.0');
-    if(!input) return;
-    const target = parseFloat(input);
-    if(isNaN(target)) return;
-    const current = 67.4;
+  // ===== 変化: 目標編集（体重）=====
+  function getCurrentWeightKg(){
+    const txt = document.getElementById('weight-current').textContent;
+    const v = parseFloat(txt);
+    return isNaN(v) ? null : v;
+  }
+  function applyWeightGoal(target){
+    const current = getCurrentWeightKg();
     document.getElementById('weight-target').textContent = target.toFixed(1)+'kg';
-    const diff = (current - target).toFixed(1);
-    if(diff > 0){
-      const startDiff = 3.4;
-      const progress = Math.max(5, Math.min(95, ((startDiff-diff)/startDiff)*100));
+    if(current == null) return;
+    const diff = current - target;
+    if(diff > 0.05){
+      const progress = Math.max(5, Math.min(95, 100 - (diff / Math.max(current*0.1, diff)) * 100));
       document.getElementById('weight-bar').style.width = progress+'%';
-      document.getElementById('weight-note').textContent = `あと${diff}kg。このペース（週0.2kg）なら目安は約${Math.max(1,Math.round(diff/0.2))}週間後です。`;
+      document.getElementById('weight-note').textContent = `あと${diff.toFixed(1)}kg。このペース（週0.2kg）なら目安は約${Math.max(1,Math.round(diff/0.2))}週間後です。`;
     } else {
       document.getElementById('weight-bar').style.width = '100%';
       document.getElementById('weight-note').textContent = '目標を達成しています。';
     }
+    updateWeightViews(window.__lastWorkerWeightData || []); // グラフに目標ラインを反映
+  }
+  document.querySelector('[data-goal="weight"]').addEventListener('click', ()=>{
+    const input = prompt('目標体重を入力してください（kg）', localStorage.getItem('hc_goal_weight_kg') || '65.0');
+    if(!input) return;
+    const target = parseFloat(input);
+    if(isNaN(target)) return;
+    localStorage.setItem('hc_goal_weight_kg', target);
+    applyWeightGoal(target);
   });
 
   // ===== 変化: 目標編集（5km） =====
-  document.querySelector('[data-goal="run"]').addEventListener('click', ()=>{
-    const input = prompt('目標タイムを入力してください（分:秒）', '23:00');
-    if(!input || !input.includes(':')) return;
-    const [m,s] = input.split(':').map(Number);
-    if(isNaN(m)||isNaN(s)) return;
-    document.getElementById('run-target').textContent = input;
-    const currentSec = 24*60+18;
-    const targetSec = m*60+s;
+  function getCurrentRunSec(){
+    const txt = document.getElementById('run-current').textContent;
+    if(!txt || !txt.includes(':')) return null;
+    const [m,s] = txt.split(':').map(Number);
+    return isNaN(m)||isNaN(s) ? null : m*60+s;
+  }
+  function applyRunGoal(targetSec){
+    const mm0 = Math.floor(targetSec/60), ss0 = targetSec%60;
+    document.getElementById('run-target').textContent = `${mm0}:${String(ss0).padStart(2,'0')}`;
+    const currentSec = getCurrentRunSec();
+    if(currentSec == null) return;
     const diffSec = currentSec - targetSec;
     if(diffSec > 0){
       const mm = Math.floor(diffSec/60), ss = diffSec%60;
@@ -695,6 +791,44 @@
       document.getElementById('run-bar').style.width = '100%';
       document.getElementById('run-note').textContent = '目標タイムを達成しています。';
     }
+  }
+  document.querySelector('[data-goal="run"]').addEventListener('click', ()=>{
+    const input = prompt('目標タイムを入力してください（分:秒）', localStorage.getItem('hc_goal_run_time') || '23:00');
+    if(!input || !input.includes(':')) return;
+    const [m,s] = input.split(':').map(Number);
+    if(isNaN(m)||isNaN(s)) return;
+    localStorage.setItem('hc_goal_run_time', input);
+    applyRunGoal(m*60+s);
+  });
+
+  // ===== 変化: 目標編集（月間走行距離）=====
+  function updateMonthlyDistanceGoal(currentKm){
+    const goalKm = parseFloat(localStorage.getItem('hc_goal_monthly_distance_km'));
+    document.getElementById('monthly-distance-current').textContent = `${currentKm.toFixed(1)}km`;
+    if(isNaN(goalKm)){
+      document.getElementById('monthly-distance-target').textContent = '未設定';
+      document.getElementById('monthly-distance-bar').style.width = '0%';
+      document.getElementById('monthly-distance-note').textContent = '目標を設定すると、今月の進捗がここに表示されます。';
+      return;
+    }
+    document.getElementById('monthly-distance-target').textContent = `${goalKm}km`;
+    const pct = Math.min(100, (currentKm/goalKm)*100);
+    document.getElementById('monthly-distance-bar').style.width = pct + '%';
+    if(currentKm >= goalKm){
+      document.getElementById('monthly-distance-note').textContent = `今月の目標を達成しました！（${currentKm.toFixed(1)}km / ${goalKm}km）`;
+    } else {
+      const daysLeftInMonth = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate() - new Date().getDate();
+      document.getElementById('monthly-distance-note').textContent = `あと${(goalKm-currentKm).toFixed(1)}km。今月残り${daysLeftInMonth}日です。`;
+    }
+  }
+  document.querySelector('[data-goal="monthly-distance"]').addEventListener('click', ()=>{
+    const input = prompt('今月の走行距離目標を入力してください（km）', localStorage.getItem('hc_goal_monthly_distance_km') || '50');
+    if(!input) return;
+    const target = parseFloat(input);
+    if(isNaN(target)) return;
+    localStorage.setItem('hc_goal_monthly_distance_km', target);
+    const currentTxt = document.getElementById('monthly-distance-current').textContent;
+    updateMonthlyDistanceGoal(parseFloat(currentTxt) || 0);
   });
 
   // ===== 実データ取得（Cloudflare Worker /latest）=====
@@ -773,6 +907,14 @@
         carbs: findMetric(metrics, ['carbohydrates']),
       };
 
+      // ---- 歩数（今日の合計）----
+      window.__stepsMetric = findMetric(metrics, ['step_count']);
+      updateStepsView(window.__stepsMetric);
+
+      // ---- 安静時心拍のベースライン ----
+      window.__restingHrMetric = findMetric(metrics, ['resting_heart_rate']);
+      updateRestingHrView(window.__restingHrMetric);
+
       window.__lastWorkerWeightData = weight ? weight.data : [];
       updateWeightViews(window.__lastWorkerWeightData);
 
@@ -803,7 +945,7 @@
     const workerPoints = (workerWeightData || []).map(p => ({
       date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ'
     })).filter(p => !isNaN(p.date) && p.kg != null);
-    const manualPoints = loadLogsSafe('hc_weight_logs').map(l => ({
+    const manualPoints = loadLogs('hc_weight_logs').map(l => ({
       date: new Date(l.ts), kg: l.kg, source: '手入力', ts: l.ts
     }));
     const all = [...workerPoints, ...manualPoints].sort((a,b) => a.date - b.date);
@@ -812,7 +954,10 @@
     // グラフ（直近30件程度に間引き）
     const chartPoints = all.slice(-30);
     const kgs = chartPoints.map(p=>p.kg);
-    const minKg = Math.min(...kgs), maxKg = Math.max(...kgs);
+    const goalKg = parseFloat(localStorage.getItem('hc_goal_weight_kg'));
+    const hasGoal = !isNaN(goalKg);
+    const allValsForRange = hasGoal ? [...kgs, goalKg] : kgs;
+    const minKg = Math.min(...allValsForRange), maxKg = Math.max(...allValsForRange);
     const range = (maxKg - minKg) || 1;
     const W = 320, H = 120, pad = 10;
     const svgPoints = chartPoints.map((p,i)=>{
@@ -822,6 +967,16 @@
     }).join(' ');
     document.getElementById('weight-chart-line').setAttribute('points', svgPoints);
     document.getElementById('weight-chart-span').textContent = `直近${chartPoints.length}件`;
+
+    const goalLineEl = document.getElementById('weight-goal-line');
+    if(hasGoal){
+      const goalY = (H - pad) - ((goalKg - minKg)/range) * (H - pad*2);
+      goalLineEl.setAttribute('y1', goalY.toFixed(1));
+      goalLineEl.setAttribute('y2', goalY.toFixed(1));
+      goalLineEl.style.display = 'block';
+    } else {
+      goalLineEl.style.display = 'none';
+    }
 
     // 増減幅（3ヶ月前 or 最も古い記録 と最新の差）
     const latest = all[all.length-1];
@@ -865,6 +1020,7 @@
       let score = 0;
       if(sleepHours != null){ if(sleepHours >= 6.5) score++; else if(sleepHours < 5.5) score--; }
       if(recentHard.length >= 3) score--;
+      if(window.__hrElevated) score--;
       conditionEl.textContent = score >= 1 ? '良好' : score <= -1 ? '低め' : '普通';
     }
   }
@@ -937,8 +1093,108 @@
     return { daysCovered, proteinLevel: levels.protein === 'low' ? 'low' : 'ok', kcalLevel: levels.kcal === 'ok' ? 'ok' : 'watch', summary: summaryParts.join('、') + '。' };
   }
 
-  function loadLogsSafe(key){
-    try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  // ---- 腹囲（手入力のみ）----
+  function updateWaistViews(){
+    const all = loadLogs(STORAGE_KEYS.waist).map(l => ({ date: new Date(l.ts), cm: l.cm, ts: l.ts })).sort((a,b)=>a.date-b.date);
+    if(!all.length) return;
+
+    const latest = all[all.length-1];
+    document.getElementById('waist-hero-value').innerHTML = `${latest.cm.toFixed(1)}<span class="unit">cm</span>`;
+
+    const threeMonthsAgo = new Date(latest.date.getTime() - 90*24*60*60*1000);
+    const baseline = all.find(p => p.date >= threeMonthsAgo) || all[0];
+    const diff = latest.cm - baseline.cm;
+    const arrow = diff < 0 ? '↓' : diff > 0 ? '↑' : '→';
+    document.getElementById('waist-hero-delta').textContent = all.length > 1
+      ? `${arrow} ${Math.abs(diff).toFixed(1)}cm / ${Math.round((latest.date-baseline.date)/(24*60*60*1000))}日`
+      : '記録1件';
+
+    const chartPoints = all.slice(-30);
+    const cms = chartPoints.map(p=>p.cm);
+    const minCm = Math.min(...cms), maxCm = Math.max(...cms);
+    const range = (maxCm - minCm) || 1;
+    const W = 320, H = 120, pad = 10;
+    const svgPoints = chartPoints.map((p,i)=>{
+      const x = pad + (i/(Math.max(chartPoints.length-1,1))) * (W - pad*2);
+      const y = (H - pad) - ((p.cm - minCm)/range) * (H - pad*2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    document.getElementById('waist-chart-line').setAttribute('points', svgPoints);
+    document.getElementById('waist-chart-span').textContent = `直近${chartPoints.length}件`;
+    document.getElementById('waist-chart-note').textContent = all.length >= 3
+      ? `${diff < -0.1 ? '緩やかな減少傾向です。' : diff > 0.1 ? '緩やかな増加傾向です。' : 'ほぼ横ばいです。'}`
+      : 'まだ記録が少ないため、傾向の判断には時間がかかります。';
+
+    const recent5 = [...all].reverse().slice(0,5);
+    document.getElementById('waist-log-count').textContent = `直近${recent5.length}件`;
+    const listEl = document.getElementById('waist-log-list');
+    listEl.innerHTML = recent5.map((p,i)=>{
+      const m = p.date.getMonth()+1, d = p.date.getDate();
+      return `<div class="logrow-editable" style="opacity:${(1-i*0.15).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m"></span><span class="v">${p.cm.toFixed(1)}cm</span><button class="log-del-btn" data-del-ts="${p.ts}">削除</button></div>`;
+    }).join('');
+    attachDeleteHandlers(listEl, STORAGE_KEYS.waist, updateWaistViews);
+  }
+  document.getElementById('submit-waist').addEventListener('click', ()=>{
+    const val = parseFloat(document.getElementById('input-waist').value);
+    if(isNaN(val)) return;
+    const logs = loadLogs(STORAGE_KEYS.waist);
+    logs.push({ cm: val, ts: Date.now() });
+    saveLogs(STORAGE_KEYS.waist, logs);
+    document.getElementById('input-waist').value = '';
+    updateWaistViews();
+  });
+  function sumStepsByDate(metric){
+    const byDate = {};
+    if(metric && metric.data){
+      metric.data.forEach(p=>{
+        const d = new Date(p.date.replace(' ', 'T'));
+        const key = d.toDateString();
+        byDate[key] = (byDate[key] || 0) + (p.qty || 0);
+      });
+    }
+    return byDate;
+  }
+  function updateStepsView(metric){
+    const byDate = sumStepsByDate(metric);
+    const todayKey = new Date().toDateString();
+    const todaySteps = byDate[todayKey];
+    const el = document.getElementById('stat-steps');
+    if(el) el.textContent = todaySteps != null ? Math.round(todaySteps).toLocaleString() : '-';
+    window.__stepsByDate = byDate;
+  }
+
+  // ---- 安静時心拍: 直近7日 vs それ以前(8〜35日)のベースラインと比較 ----
+  function updateRestingHrView(metric){
+    const noteEl = document.getElementById('stat-hr-note');
+    if(!metric || !metric.data || !metric.data.length){
+      if(noteEl) noteEl.style.display = 'none';
+      window.__hrElevated = false;
+      return;
+    }
+    const now = new Date();
+    const points = metric.data.map(p => ({ date: new Date(p.date.replace(' ', 'T')), qty: p.qty })).filter(p => !isNaN(p.date));
+    const recent = points.filter(p => (now - p.date) <= 7*24*60*60*1000);
+    const baseline = points.filter(p => (now - p.date) > 7*24*60*60*1000 && (now - p.date) <= 35*24*60*60*1000);
+    if(!recent.length || baseline.length < 3){
+      if(noteEl) noteEl.style.display = 'none';
+      window.__hrElevated = false;
+      return;
+    }
+    const recentAvg = recent.reduce((s,p)=>s+p.qty,0) / recent.length;
+    const baselineAvg = baseline.reduce((s,p)=>s+p.qty,0) / baseline.length;
+    const diff = recentAvg - baselineAvg;
+    window.__hrElevated = diff >= 4;
+    if(noteEl){
+      noteEl.style.display = 'block';
+      if(diff >= 4){
+        noteEl.textContent = `安静時心拍が普段の基準（${Math.round(baselineAvg)}bpm）より${Math.round(diff)}高め（${Math.round(recentAvg)}bpm）です。疲労や体調不良のサインの可能性があります。`;
+        noteEl.className = 'modal-note';
+        noteEl.style.color = 'var(--warn)';
+      } else {
+        noteEl.textContent = `安静時心拍は普段の基準（${Math.round(baselineAvg)}bpm）とほぼ同じ（${Math.round(recentAvg)}bpm）です。`;
+        noteEl.style.color = '';
+      }
+    }
   }
 
   function setInv(barId, countId, count){
@@ -971,7 +1227,7 @@
     const speedCount = recent.filter(w => isSpeed(w.name)).length;
 
     // 筋トレ: アプリ内記録（日単位でカウント。1日に複数種目やっても1回とする）
-    const strengthLogs = loadLogsSafe('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo);
+    const strengthLogs = loadLogs('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo);
     const strengthDaySet = new Set(strengthLogs.map(l => new Date(l.ts).toDateString()));
     const strengthCount = strengthDaySet.size;
 
@@ -986,10 +1242,10 @@
     const since = new Date(now.getTime() - days*24*60*60*1000);
     const workouts = (window.__latestWorkouts || []).filter(w => new Date(w.start) >= since);
     const weightLogsAll = [
-      ...loadLogsSafe('hc_weight_logs').map(l => ({ date: new Date(l.ts), kg: l.kg })),
+      ...loadLogs('hc_weight_logs').map(l => ({ date: new Date(l.ts), kg: l.kg })),
     ];
     const weightInWindow = weightLogsAll.filter(p => p.date >= since);
-    const mealLogsInWindow = loadLogsSafe('hc_meal_logs').filter(l => l.ts && new Date(l.ts) >= since);
+    const mealLogsInWindow = loadLogs('hc_meal_logs').filter(l => l.ts && new Date(l.ts) >= since);
 
     const setGrade = (key, grade, desc) => {
       const g = document.getElementById(`grade-${key}`);
@@ -1010,18 +1266,31 @@
       setGrade('sleep', '-', 'データ不足のため判断できません。');
     }
 
-    // 身体活動・運動: 期間中のワークアウト頻度
+    // 身体活動・運動: 期間中のワークアウト頻度＋歩数
     const weeksSpan = days/7;
     const freq = workouts.length / weeksSpan;
-    if(workouts.length === 0){
+    const stepsByDate = window.__stepsByDate || {};
+    const stepValuesInWindow = Object.entries(stepsByDate)
+      .filter(([dateStr]) => new Date(dateStr) >= since)
+      .map(([,v]) => v);
+    const avgSteps = stepValuesInWindow.length ? stepValuesInWindow.reduce((a,b)=>a+b,0)/stepValuesInWindow.length : null;
+    const stepsNote = avgSteps != null ? `1日平均${Math.round(avgSteps).toLocaleString()}歩。` : '';
+
+    if(workouts.length === 0 && avgSteps == null){
       setGrade('activity', '-', 'データ不足のため判断できません。');
       setGrade('exercise', '-', 'データ不足のため判断できません。');
     } else {
-      setGrade('activity', freq >= 3 ? 'A' : freq >= 1.5 ? 'B' : 'C', `期間中${workouts.length}回のワークアウトを記録（週${freq.toFixed(1)}回相当）。`);
+      let activityGrade;
+      if(avgSteps != null){
+        activityGrade = (freq >= 3 || avgSteps >= 8000) ? 'A' : (freq >= 1.5 || avgSteps >= 5000) ? 'B' : 'C';
+      } else {
+        activityGrade = freq >= 3 ? 'A' : freq >= 1.5 ? 'B' : 'C';
+      }
+      setGrade('activity', activityGrade, `${stepsNote}期間中${workouts.length}回のワークアウトを記録（週${freq.toFixed(1)}回相当）。`);
       const hasRun = workouts.some(w => /ラン|run/i.test(w.name||''));
       const hasStrength = workouts.some(w => /筋トレ|strength/i.test(w.name||''));
       setGrade('exercise', (hasRun && hasStrength) ? 'A' : (hasRun || hasStrength) ? 'B' : 'C',
-        (hasRun && hasStrength) ? 'ラン・筋トレともに記録があります。' : hasRun ? 'ランの記録はありますが、筋トレの記録がありません。' : hasStrength ? '筋トレの記録はありますが、ランの記録がありません。' : '運動の種類が偏っています。');
+        (hasRun && hasStrength) ? 'ラン・筋トレともに記録があります。' : hasRun ? 'ランの記録はありますが、筋トレの記録がありません。' : hasStrength ? '筋トレの記録はありますが、ランの記録がありません。' : workouts.length ? '運動の種類が偏っています。' : 'ワークアウトの記録がありません。');
     }
 
     // 心肺: 期間中のEasy Runペースを前半・後半で比較
@@ -1118,7 +1387,7 @@
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
     const recentWorkouts = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
-    const strengthDays = new Set(loadLogsSafe('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo).map(l => new Date(l.ts).toDateString()));
+    const strengthDays = new Set(loadLogs('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo).map(l => new Date(l.ts).toDateString()));
     const totalRecent = recentWorkouts.length + strengthDays.size;
     const activityEl = document.getElementById('stat-activity');
     if(activityEl){
@@ -1155,6 +1424,12 @@
     const runsLast30 = allRunsSorted.filter(w => new Date(w.start) >= thirtyDaysAgo);
     const totalDistance = runsLast30.reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
     document.getElementById('stat-monthly-distance').textContent = `${totalDistance.toFixed(1)}km`;
+
+    // ---- 今月（カレンダー月）の走行距離目標 ----
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthDistance = allRunsSorted.filter(w => new Date(w.start) >= firstOfMonth)
+      .reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
+    updateMonthlyDistanceGoal(thisMonthDistance);
 
     const easyRuns30 = runsLast30.filter(w => classifyRunType(w).key === 'easy');
     const easyPaces = easyRuns30.map(runPaceMinPerKm).filter(p => p != null);
@@ -1225,6 +1500,28 @@
         <div class="sitem"><div class="v">${totalAllTime.toFixed(0)}km</div><div class="l">総走行距離</div></div>
       `;
       document.getElementById('personal-bests-card').style.display = 'block';
+
+      // ---- 自己ベスト更新の検知（前回計算時と比較）----
+      const prevLongest = parseFloat(localStorage.getItem('hc_pb_longest_km'));
+      const prevFastest = parseFloat(localStorage.getItem('hc_pb_fastest_km_sec'));
+      const currentLongest = longest.distance ? longest.distance.qty : 0;
+      if(!isNaN(prevLongest) && currentLongest > prevLongest + 0.05){
+        celebrate('自己ベスト更新！', `最長距離が${prevLongest.toFixed(1)}km→${currentLongest.toFixed(1)}kmになりました。`);
+      }
+      if(fastestKm != null && !isNaN(prevFastest) && fastestKm < prevFastest - 1){
+        celebrate('自己ベスト更新！', `最速1kmラップが${fmtPace(prevFastest/60)}→${fmtPace(fastestKm/60)}になりました。`);
+      }
+      localStorage.setItem('hc_pb_longest_km', currentLongest);
+      if(fastestKm != null) localStorage.setItem('hc_pb_fastest_km_sec', fastestKm);
+
+      // ---- 累計走行距離のマイルストーン ----
+      const prevTotal = parseFloat(localStorage.getItem('hc_pb_total_km'));
+      const milestones = [50,100,200,300,500,750,1000];
+      if(!isNaN(prevTotal)){
+        const crossed = milestones.find(m => prevTotal < m && totalAllTime >= m);
+        if(crossed) celebrate('マイルストーン達成！', `累計走行距離が${crossed}kmを突破しました。`);
+      }
+      localStorage.setItem('hc_pb_total_km', totalAllTime);
     }
   }
 
@@ -1376,12 +1673,68 @@
         <div class="sitem"><div class="v">${classifyRunTypeGlobal(w).label}</div><div class="l">種別</div></div>
       </div>
       <div id="run-route-shape" style="margin-top:16px;"></div>
+      <div class="section-title" style="margin:20px 0 10px; padding:0;"><h2>心拍ゾーン別の時間配分</h2></div>
+      <div id="run-hr-zones"></div>
       <div class="section-title" style="margin:20px 0 10px; padding:0;"><h2>ラップ（1kmごと）</h2></div>
       <div id="run-splits-container"></div>
     `;
     renderSplits(w);
     renderRouteShape(w);
+    renderHrZones(w);
     openModal('modal-run-detail');
+  }
+
+  // ---- 心拍ゾーン別の時間配分 ----
+  function renderHrZones(w){
+    const el = document.getElementById('run-hr-zones');
+    if(!el) return;
+    if(!w.heartRate || w.heartRate.length < 2){
+      el.innerHTML = `<div class="modal-note">心拍の時系列データがないため計算できません。</div>`;
+      return;
+    }
+    const pts = [...w.heartRate].map(h => ({
+      date: new Date((h.date||'').replace(' ','T')), bpm: h.Avg ?? h.avg ?? h.qty
+    })).filter(p => !isNaN(p.date) && typeof p.bpm === 'number').sort((a,b)=>a.date-b.date);
+    if(pts.length < 2){
+      el.innerHTML = `<div class="modal-note">心拍の時系列データが不足しています。</div>`;
+      return;
+    }
+    // 目安ゾーン（個人の最大心拍は未設定のため一般的な絶対値ベース）
+    const zones = [
+      { key:'easy', label:'楽', max:120, color:'var(--good)' },
+      { key:'moderate', label:'ややきつい', max:140, color:'var(--mid)' },
+      { key:'hard', label:'きつい', max:160, color:'var(--warn)' },
+      { key:'veryhard', label:'非常にきつい', max:Infinity, color:'#C9645E' },
+    ];
+    const zoneSeconds = { easy:0, moderate:0, hard:0, veryhard:0 };
+    for(let i=1;i<pts.length;i++){
+      const dt = (pts[i].date - pts[i-1].date)/1000;
+      if(dt <= 0 || dt > 600) continue; // 異常な間隔は無視
+      const bpm = (pts[i].bpm + pts[i-1].bpm)/2;
+      const zone = zones.find(z => bpm <= z.max);
+      zoneSeconds[zone.key] += dt;
+    }
+    const totalSec = Object.values(zoneSeconds).reduce((a,b)=>a+b,0);
+    if(totalSec < 30){
+      el.innerHTML = `<div class="modal-note">心拍データの時間幅が短く、ゾーン分析はできません。</div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div style="display:flex; height:14px; border-radius:8px; overflow:hidden; margin-bottom:12px;">
+        ${zones.map(z => zoneSeconds[z.key] > 0 ? `<div style="width:${(zoneSeconds[z.key]/totalSec*100).toFixed(1)}%; background:${z.color};"></div>` : '').join('')}
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        ${zones.map(z => {
+          const min = Math.round(zoneSeconds[z.key]/60);
+          const pct = Math.round(zoneSeconds[z.key]/totalSec*100);
+          return `<div style="display:flex; justify-content:space-between; align-items:center; font-size:12.5px;">
+            <span style="display:flex; align-items:center; gap:6px;"><span style="width:8px; height:8px; border-radius:50%; background:${z.color}; display:inline-block;"></span>${z.label}</span>
+            <span class="mono" style="color:var(--sub);">${min}分（${pct}%）</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="modal-note" style="margin-top:10px;">個人の最大心拍数は未設定のため、一般的な目安（bpm絶対値）でゾーン分けしています。</div>
+    `;
   }
   function classifyRunTypeGlobal(w){
     const n = (w.name || '').toLowerCase();
@@ -1419,7 +1772,7 @@
   // =====================================================
   // ここから: 手動記録機能（localStorage）
   // =====================================================
-  const STORAGE_KEYS = { weight: 'hc_weight_logs', strength: 'hc_strength_logs', meal: 'hc_meal_logs' };
+  const STORAGE_KEYS = { weight: 'hc_weight_logs', strength: 'hc_strength_logs', meal: 'hc_meal_logs', waist: 'hc_waist_logs' };
 
   function loadLogs(key){
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
@@ -1502,8 +1855,21 @@
     renderWeightRecent();
     updateWeightViews(window.__lastWorkerWeightData || []);
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    checkWeightMilestones(val);
     closeModal('modal-weight');
   });
+
+  // ---- 体重の最軽量記録・目標達成のお祝い ----
+  function checkWeightMilestones(val){
+    const goalKg = parseFloat(localStorage.getItem('hc_goal_weight_kg'));
+    const prevMin = parseFloat(localStorage.getItem('hc_pb_min_weight_kg'));
+    if(!isNaN(goalKg) && val <= goalKg && (isNaN(prevMin) || prevMin > goalKg)){
+      celebrate('目標体重を達成！', `${val.toFixed(1)}kgに到達しました。おめでとうございます。`);
+    } else if(!isNaN(prevMin) && val < prevMin - 0.05){
+      celebrate('最軽量を更新', `これまでの記録で最も軽い${val.toFixed(1)}kgになりました。`);
+    }
+    if(isNaN(prevMin) || val < prevMin) localStorage.setItem('hc_pb_min_weight_kg', val);
+  }
 
   // ---- 筋トレ記録＋漸進性過負荷の判定 ----
   const STRENGTH_PROGRESSIONS = {
@@ -1710,6 +2076,87 @@
   document.querySelector('#change-tabs [data-panel="muscle"]').addEventListener('click', renderMuscleTab);
 
   // ---- 「健康」画面: 食事ログ一覧 ----
+  // ---- カレンダーヒートマップ（今月）----
+  function renderHeatmap(){
+    const grid = document.getElementById('heatmap-grid');
+    const label = document.getElementById('heatmap-month-label');
+    if(!grid) return;
+    const now = new Date();
+    label.textContent = `${now.getFullYear()}年${now.getMonth()+1}月`;
+
+    // 各種ログを日付文字列（toDateString）で集計
+    const counts = {};
+    const bump = (dateObj) => {
+      if(isNaN(dateObj)) return;
+      const key = dateObj.toDateString();
+      counts[key] = (counts[key] || 0) + 1;
+    };
+    loadLogs('hc_weight_logs').forEach(l => bump(new Date(l.ts)));
+    loadLogs('hc_waist_logs').forEach(l => bump(new Date(l.ts)));
+    loadLogs('hc_strength_logs').forEach(l => bump(new Date(l.ts)));
+    loadLogs('hc_meal_logs').forEach(l => l.ts && bump(new Date(l.ts)));
+    (window.__latestWorkouts || []).forEach(w => bump(new Date(w.start)));
+
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startWeekday = firstOfMonth.getDay(); // 0=日
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+
+    let html = ['日','月','火','水','木','金','土'].map(d => `<div style="text-align:center; font-size:10px; color:var(--low);">${d}</div>`).join('');
+    for(let i=0;i<startWeekday;i++) html += `<div></div>`;
+    for(let d=1; d<=daysInMonth; d++){
+      const dateObj = new Date(now.getFullYear(), now.getMonth(), d);
+      const isFuture = dateObj > now;
+      const count = counts[dateObj.toDateString()] || 0;
+      const lvClass = isFuture ? 'future' : count >= 4 ? 'lv3' : count >= 2 ? 'lv2' : count >= 1 ? 'lv1' : '';
+      html += `<div class="heat-cell ${lvClass}">${d}</div>`;
+    }
+    grid.innerHTML = html;
+  }
+
+  // ---- 週次ダイジェスト（今週 vs 先週）----
+  function renderWeeklyDigest(){
+    const body = document.getElementById('weekly-digest-body');
+    const rangeEl = document.getElementById('weekly-digest-range');
+    if(!body) return;
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7*24*60*60*1000);
+    const twoWeeksAgo = new Date(now.getTime() - 14*24*60*60*1000);
+    rangeEl.textContent = `${weekAgo.getMonth()+1}/${weekAgo.getDate()}〜今日`;
+
+    const workouts = window.__latestWorkouts || [];
+    const thisWeekWorkouts = workouts.filter(w => new Date(w.start) >= weekAgo);
+    const lastWeekWorkouts = workouts.filter(w => new Date(w.start) >= twoWeeksAgo && new Date(w.start) < weekAgo);
+    const distOf = arr => arr.filter(w=>/ラン|run/i.test(w.name||'')).reduce((s,w)=>s+(w.distance?w.distance.qty:0),0);
+    const thisDist = distOf(thisWeekWorkouts), lastDist = distOf(lastWeekWorkouts);
+
+    const weightLogs = loadLogs('hc_weight_logs').map(l=>({date:new Date(l.ts), kg:l.kg})).sort((a,b)=>a.date-b.date);
+    const thisWeekWeights = weightLogs.filter(p=>p.date>=weekAgo);
+    const weightDiff = thisWeekWeights.length >= 1 && weightLogs.length ? (thisWeekWeights[thisWeekWeights.length-1].kg - (weightLogs.find(p=>p.date<weekAgo)?.kg ?? thisWeekWeights[0].kg)) : null;
+
+    const mealCountThis = loadLogs('hc_meal_logs').filter(l=>l.ts && new Date(l.ts)>=weekAgo).length;
+
+    if(thisWeekWorkouts.length === 0 && mealCountThis === 0 && !thisWeekWeights.length){
+      body.innerHTML = `<div class="modal-note">今週はまだ記録がありません。</div>`;
+      return;
+    }
+
+    const distDiff = thisDist - lastDist;
+    const workoutDiff = thisWeekWorkouts.length - lastWeekWorkouts.length;
+
+    body.innerHTML = `
+      <div class="stat-grid" style="margin:0 0 12px;">
+        <div class="sitem"><div class="v">${thisWeekWorkouts.length}回</div><div class="l">運動</div></div>
+        <div class="sitem"><div class="v">${thisDist.toFixed(1)}km</div><div class="l">走行距離</div></div>
+        <div class="sitem"><div class="v">${mealCountThis}件</div><div class="l">食事記録</div></div>
+      </div>
+      <div class="modal-note">
+        ${workoutDiff > 0 ? `先週より運動回数が${workoutDiff}回増えました。` : workoutDiff < 0 ? `先週より運動回数が${Math.abs(workoutDiff)}回減っています。` : '運動回数は先週と同じです。'}
+        ${lastDist > 0 ? (distDiff > 0.5 ? ` 走行距離も${distDiff.toFixed(1)}km伸びています。` : distDiff < -0.5 ? ` 走行距離は${Math.abs(distDiff).toFixed(1)}km減っています。` : '') : ''}
+        ${weightDiff != null ? (weightDiff < -0.1 ? ` 体重は${Math.abs(weightDiff).toFixed(1)}kg減少しました。` : weightDiff > 0.1 ? ` 体重は${weightDiff.toFixed(1)}kg増加しました。` : ' 体重はほぼ横ばいでした。') : ''}
+      </div>
+    `;
+  }
+
   function renderMealLogSection(){
     const logs = loadLogs(STORAGE_KEYS.meal).slice().reverse();
     const countEl = document.getElementById('meal-log-count');
@@ -1733,12 +2180,26 @@
   document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', ()=>{
     renderMealLogSection();
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    renderHeatmap();
+    renderWeeklyDigest();
   });
+  renderHeatmap();
+  renderWeeklyDigest();
 
   // フォールバック: 実データ取得が遅い/失敗しても、手入力ログだけでスコアを試算しておく
   computeHealthScores(7);
   updateWeightViews([]);
   recomputeExerciseBalance();
+  updateWaistViews();
+
+  // 保存済みの目標を復元
+  const savedWeightGoal = parseFloat(localStorage.getItem('hc_goal_weight_kg'));
+  if(!isNaN(savedWeightGoal)) applyWeightGoal(savedWeightGoal);
+  const savedRunGoal = localStorage.getItem('hc_goal_run_time');
+  if(savedRunGoal && savedRunGoal.includes(':')){
+    const [m,s] = savedRunGoal.split(':').map(Number);
+    if(!isNaN(m) && !isNaN(s)) applyRunGoal(m*60+s);
+  }
 </script>
 
 </body>
