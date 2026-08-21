@@ -203,9 +203,77 @@
   .bottom-nav button{flex:1; background:none; border:none; color:var(--sub); font-size:12px; font-weight:700; padding:8px 4px; position:relative;}
   .bottom-nav button.active{color:var(--good);}
   .bottom-nav button.active::before{content:""; position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--good);}
+
+  /* ---------- モーダル ---------- */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; align-items:flex-end; justify-content:center;}
+  .modal-overlay.active{display:flex;}
+  .modal-sheet{width:100%; max-width:480px; background:var(--card-raised); border-radius:20px 20px 0 0; padding:22px 20px calc(22px + env(safe-area-inset-bottom)); max-height:85vh; overflow-y:auto;}
+  .modal-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .modal-head h3{font-size:16px; font-weight:700;}
+  .modal-close{background:none; border:none; color:var(--sub); font-size:20px; padding:4px;}
+  .field-label{font-size:12px; color:var(--sub); margin-bottom:6px; display:block;}
+  .field-input{width:100%; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; color:var(--text); font-size:15px; margin-bottom:16px;}
+  .field-input:focus{outline:none; border-color:var(--good-dim);}
+  textarea.field-input{resize:none; min-height:80px; font-family:inherit;}
+  .chip-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;}
+  .chip-btn{padding:9px 14px; border-radius:20px; border:1px solid var(--line); background:var(--card); color:var(--sub); font-size:13px; font-weight:700;}
+  .chip-btn.active{background:var(--good-dim); color:var(--good); border-color:var(--good-dim);}
+  .modal-submit{width:100%; padding:14px; border-radius:14px; background:var(--good); color:var(--bg); border:none; font-size:15px; font-weight:700; margin-top:4px;}
+  .modal-note{font-size:11.5px; color:var(--low); line-height:1.6; margin-top:12px;}
+  .progress-hint{margin-top:14px; padding:12px 14px; background:var(--warn-dim); border-radius:12px; font-size:12.5px; color:var(--warn); line-height:1.6; display:none;}
+  .progress-hint.show{display:block;}
+  .recent-log-row{display:flex; justify-content:space-between; font-size:12.5px; color:var(--sub); padding:6px 0; border-top:1px solid var(--line);}
 </style>
 </head>
 <body>
+
+<div class="modal-overlay" id="modal-weight">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>体重を記録</h3><button class="modal-close" data-close>✕</button></div>
+    <label class="field-label">体重 (kg)</label>
+    <input type="number" step="0.1" inputmode="decimal" class="field-input" id="input-weight" placeholder="67.4">
+    <button class="modal-submit" id="submit-weight">保存</button>
+    <div id="weight-recent-logs"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-strength">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>筋トレを記録</h3><button class="modal-close" data-close>✕</button></div>
+    <label class="field-label">種目</label>
+    <div class="chip-row" id="strength-exercise-chips">
+      <button class="chip-btn active" data-ex="腕立て">腕立て</button>
+      <button class="chip-btn" data-ex="ブルガリアンスクワット">ブルガリアンスクワット</button>
+      <button class="chip-btn" data-ex="リュックローイング">リュックローイング</button>
+      <button class="chip-btn" data-ex="ヒップリフト">ヒップリフト</button>
+      <button class="chip-btn" data-ex="カーフレイズ">カーフレイズ</button>
+      <button class="chip-btn" data-ex="体幹">体幹</button>
+    </div>
+    <label class="field-label">レップ数（セットごとにスペース区切り。例: 12 11 10）</label>
+    <input type="text" inputmode="numeric" class="field-input" id="input-strength" placeholder="12 11 10">
+    <button class="modal-submit" id="submit-strength">保存</button>
+    <div class="progress-hint" id="strength-progress-hint"></div>
+    <div id="strength-recent-logs"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-meal">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>食事を記録</h3><button class="modal-close" data-close>✕</button></div>
+    <label class="field-label">タイミング</label>
+    <div class="chip-row" id="meal-slot-chips">
+      <button class="chip-btn active" data-slot="朝">朝</button>
+      <button class="chip-btn" data-slot="昼">昼</button>
+      <button class="chip-btn" data-slot="間食">間食</button>
+      <button class="chip-btn" data-slot="夜">夜</button>
+    </div>
+    <label class="field-label">食べたもの（簡単でOK）</label>
+    <textarea class="field-input" id="input-meal" placeholder="例: 鮭、ご飯、味噌汁、冷奴"></textarea>
+    <button class="modal-submit" id="submit-meal">保存</button>
+    <div class="modal-note" id="meal-ai-note">保存すると、AIがおおよその栄養価を推定します（AI連携が未設定の場合は記録のみ保存されます）。</div>
+    <div id="meal-recent-logs"></div>
+  </div>
+</div>
 
 <div class="app">
   <main id="content">
@@ -228,9 +296,21 @@
         </div>
       </div>
 
+      <div class="section-title"><h2>今日使える時間・気分</h2></div>
+      <div class="chip-row" style="margin:0 20px 10px;" id="time-chips">
+        <button class="chip-btn" data-time="15">〜15分</button>
+        <button class="chip-btn active" data-time="30">〜30分</button>
+        <button class="chip-btn" data-time="60">60分+</button>
+      </div>
+      <div class="chip-row" style="margin:0 20px 22px;" id="mood-chips">
+        <button class="chip-btn active" data-mood="high">やる気あり</button>
+        <button class="chip-btn" data-mood="normal">普通</button>
+        <button class="chip-btn" data-mood="low">気乗りしない</button>
+      </div>
+
       <div class="section-title"><h2>今日のおすすめ</h2><span>TAP TO SELECT</span></div>
-      <div class="recs">
-        <div class="rec">
+      <div class="recs" id="recs-container">
+        <div class="rec" data-mins="30" data-intensity="high">
           <div class="rec-num">01</div>
           <div class="rec-body">
             <div class="rec-title">Easy Run 5km</div>
@@ -238,7 +318,7 @@
           </div>
           <div class="rec-check">✓</div>
         </div>
-        <div class="rec">
+        <div class="rec" data-mins="30" data-intensity="high">
           <div class="rec-num">02</div>
           <div class="rec-body">
             <div class="rec-title">全身自宅筋トレ 30分</div>
@@ -246,7 +326,7 @@
           </div>
           <div class="rec-check">✓</div>
         </div>
-        <div class="rec">
+        <div class="rec" data-mins="45" data-intensity="low">
           <div class="rec-num">03</div>
           <div class="rec-body">
             <div class="rec-title">ウォーキング 45分</div>
@@ -254,7 +334,7 @@
           </div>
           <div class="rec-check">✓</div>
         </div>
-        <div class="rec">
+        <div class="rec" data-mins="10" data-intensity="low">
           <div class="rec-num">04</div>
           <div class="rec-body">
             <div class="rec-title">自宅筋トレ 10分<span class="badge time">時短</span></div>
@@ -263,6 +343,7 @@
           <div class="rec-check">✓</div>
         </div>
       </div>
+      <div id="rec-filter-note" class="modal-note" style="margin:0 20px 22px; display:none;"></div>
 
       <div class="freeform">
         <span>＋</span>
@@ -480,9 +561,9 @@
   <!-- コンテキストバー（タブごとに切り替え） -->
   <div class="context-bar" id="context-today">
     <div class="quicklog">
-      <button class="ql-btn"><span class="ic">🍚</span>食事</button>
-      <button class="ql-btn"><span class="ic">⚖️</span>体重</button>
-      <button class="ql-btn"><span class="ic">🏋️</span>筋トレ</button>
+      <button class="ql-btn" id="open-meal"><span class="ic">🍚</span>食事</button>
+      <button class="ql-btn" id="open-weight"><span class="ic">⚖️</span>体重</button>
+      <button class="ql-btn" id="open-strength"><span class="ic">🏋️</span>筋トレ</button>
     </div>
   </div>
   <div class="context-bar" id="context-ai" style="display:none;">
@@ -741,6 +822,183 @@
   }
 
   loadRealData();
+
+  // =====================================================
+  // ここから: 手動記録機能（localStorage）
+  // =====================================================
+  const STORAGE_KEYS = { weight: 'hc_weight_logs', strength: 'hc_strength_logs', meal: 'hc_meal_logs' };
+
+  function loadLogs(key){
+    try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
+  }
+  function saveLogs(key, logs){
+    localStorage.setItem(key, JSON.stringify(logs));
+  }
+  function todayStr(){
+    const d = new Date();
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  }
+
+  // ---- モーダル開閉 ----
+  function openModal(id){ document.getElementById(id).classList.add('active'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+  document.querySelectorAll('.modal-overlay [data-close]').forEach(btn=>{
+    btn.addEventListener('click', ()=> btn.closest('.modal-overlay').classList.remove('active'));
+  });
+  document.querySelectorAll('.modal-overlay').forEach(overlay=>{
+    overlay.addEventListener('click', (e)=>{ if(e.target === overlay) overlay.classList.remove('active'); });
+  });
+  document.getElementById('open-weight').addEventListener('click', ()=>{ renderWeightRecent(); openModal('modal-weight'); });
+  document.getElementById('open-strength').addEventListener('click', ()=>{ renderStrengthRecent(); openModal('modal-strength'); });
+  document.getElementById('open-meal').addEventListener('click', ()=>{ renderMealRecent(); openModal('modal-meal'); });
+
+  // ---- チップ選択の共通処理 ----
+  function setupChipGroup(containerId, dataAttr){
+    const container = document.getElementById(containerId);
+    let selected = container.querySelector('.chip-btn.active').getAttribute(dataAttr);
+    container.querySelectorAll('.chip-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        container.querySelectorAll('.chip-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        selected = btn.getAttribute(dataAttr);
+        container.dispatchEvent(new CustomEvent('chipchange', { detail: selected }));
+      });
+    });
+    return { get: () => selected };
+  }
+  const strengthExerciseChip = setupChipGroup('strength-exercise-chips', 'data-ex');
+  const mealSlotChip = setupChipGroup('meal-slot-chips', 'data-slot');
+
+  // ---- 体重記録 ----
+  function renderWeightRecent(){
+    const logs = loadLogs(STORAGE_KEYS.weight).slice(-5).reverse();
+    document.getElementById('weight-recent-logs').innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date}</span><span>${l.kg}kg</span></div>`).join('');
+  }
+  document.getElementById('submit-weight').addEventListener('click', ()=>{
+    const val = parseFloat(document.getElementById('input-weight').value);
+    if(isNaN(val)) return;
+    const logs = loadLogs(STORAGE_KEYS.weight);
+    logs.push({ date: todayStr(), kg: val, ts: Date.now() });
+    saveLogs(STORAGE_KEYS.weight, logs);
+    document.getElementById('weight-hero-value').innerHTML = `${val.toFixed(1)}<span class="unit">kg</span>`;
+    document.getElementById('weight-current').textContent = `${val.toFixed(1)}kg`;
+    document.getElementById('input-weight').value = '';
+    renderWeightRecent();
+    closeModal('modal-weight');
+  });
+
+  // ---- 筋トレ記録＋漸進性過負荷の判定 ----
+  const STRENGTH_PROGRESSIONS = {
+    '腕立て': '足上げ腕立て、またはリュック＋負荷を背負っての腕立て',
+    'ブルガリアンスクワット': '片手にダンベルや水入りペットボトルを持って負荷を追加',
+    'リュックローイング': 'リュックの重量を増やす、またはテンポを遅くして負荷を増やす',
+    'ヒップリフト': '片足ヒップリフトへ移行',
+    'カーフレイズ': '片足カーフレイズ、または段差を使って可動域を広げる',
+    '体幹': 'プランクの保持時間を延ばす、またはサイドプランクを追加'
+  };
+  function renderStrengthRecent(ex){
+    ex = ex || strengthExerciseChip.get();
+    const logs = loadLogs(STORAGE_KEYS.strength).filter(l => l.exercise === ex).slice(-5).reverse();
+    document.getElementById('strength-recent-logs').innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date} ${l.exercise}</span><span>${l.reps.join(' ')}（計${l.reps.reduce((a,b)=>a+b,0)}）</span></div>`).join('');
+    document.getElementById('strength-progress-hint').classList.remove('show');
+  }
+  document.getElementById('strength-exercise-chips').addEventListener('chipchange', (e)=> renderStrengthRecent(e.detail));
+
+  document.getElementById('submit-strength').addEventListener('click', ()=>{
+    const raw = document.getElementById('input-strength').value.trim();
+    if(!raw) return;
+    const reps = raw.split(/\s+/).map(Number).filter(n => !isNaN(n));
+    if(!reps.length) return;
+    const exercise = strengthExerciseChip.get();
+    const total = reps.reduce((a,b)=>a+b, 0);
+
+    const logs = loadLogs(STORAGE_KEYS.strength);
+    const priorForEx = logs.filter(l => l.exercise === exercise);
+    logs.push({ date: todayStr(), exercise, reps, total, ts: Date.now() });
+    saveLogs(STORAGE_KEYS.strength, logs);
+
+    // 直近3回、総レップ数が伸びていない（頭打ち）なら種目変更を提案
+    const lastThree = [...priorForEx.slice(-2), { total }];
+    const hint = document.getElementById('strength-progress-hint');
+    if(lastThree.length >= 3 && lastThree.every((l,i,arr) => i===0 || l.total <= arr[i-1].total + 1)){
+      hint.textContent = `通常「${exercise}」では負荷が不足してきました。${STRENGTH_PROGRESSIONS[exercise] || '負荷を上げること'}を提案します。`;
+      hint.classList.add('show');
+    } else if(priorForEx.length && total > priorForEx[priorForEx.length-1].total){
+      hint.textContent = `前回（計${priorForEx[priorForEx.length-1].total}回）より伸びています（計${total}回）。順調です。`;
+      hint.classList.add('show');
+    }
+
+    document.getElementById('input-strength').value = '';
+    renderStrengthRecent(exercise);
+  });
+
+  // ---- 食事記録 ----
+  function renderMealRecent(){
+    const logs = loadLogs(STORAGE_KEYS.meal).slice(-5).reverse();
+    document.getElementById('meal-recent-logs').innerHTML = logs.map(l =>
+      `<div class="recent-log-row"><span>${l.date} ${l.slot}</span><span>${l.text.length > 14 ? l.text.slice(0,14)+'…' : l.text}</span></div>`).join('');
+  }
+  document.getElementById('submit-meal').addEventListener('click', async ()=>{
+    const text = document.getElementById('input-meal').value.trim();
+    if(!text) return;
+    const slot = mealSlotChip.get();
+    const logs = loadLogs(STORAGE_KEYS.meal);
+    const entry = { date: todayStr(), slot, text, ts: Date.now(), estimate: null };
+    logs.push(entry);
+    saveLogs(STORAGE_KEYS.meal, logs);
+    document.getElementById('input-meal').value = '';
+    renderMealRecent();
+    closeModal('modal-meal');
+    // AI栄養推定はWorkerのAIプロキシが設定されていれば非同期で試みる（未設定なら何もしない）
+    tryEstimateMealNutrition(entry);
+  });
+
+  async function tryEstimateMealNutrition(entry){
+    if(typeof AI_PROXY_URL === 'undefined' || !AI_PROXY_URL) return;
+    try{
+      const res = await fetch(`${AI_PROXY_URL}/estimate-meal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: entry.text })
+      });
+      if(!res.ok) return;
+      const data = await res.json();
+      const logs = loadLogs(STORAGE_KEYS.meal);
+      const target = logs.find(l => l.ts === entry.ts);
+      if(target){ target.estimate = data; saveLogs(STORAGE_KEYS.meal, logs); }
+    }catch(e){ console.error('meal estimate failed', e); }
+  }
+
+  // ---- 今日使える時間・気分によるおすすめの絞り込み ----
+  function applyRecFilter(){
+    const maxMins = parseInt(document.querySelector('#time-chips .chip-btn.active').dataset.time, 10);
+    const mood = document.querySelector('#mood-chips .chip-btn.active').dataset.mood;
+    const recs = document.querySelectorAll('#recs-container .rec');
+    let visibleCount = 0;
+    recs.forEach(rec=>{
+      const mins = parseInt(rec.dataset.mins, 10);
+      const intensity = rec.dataset.intensity;
+      const fitsTime = mins <= maxMins;
+      const fitsMood = !(mood === 'low' && intensity === 'high');
+      const show = fitsTime && fitsMood;
+      rec.style.display = show ? '' : 'none';
+      if(show) visibleCount++;
+    });
+    const note = document.getElementById('rec-filter-note');
+    if(visibleCount === 0){
+      note.style.display = 'block';
+      note.textContent = '条件に合うメニューがありません。時間か気分の設定を変えてみてください。';
+    } else {
+      note.style.display = 'none';
+    }
+  }
+  document.getElementById('time-chips').addEventListener('chipchange', applyRecFilter);
+  document.getElementById('mood-chips').addEventListener('chipchange', applyRecFilter);
+  setupChipGroup('time-chips', 'data-time');
+  setupChipGroup('mood-chips', 'data-mood');
+  applyRecFilter();
 </script>
 
 </body>
