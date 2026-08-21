@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Health Coach</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+  :root{
+    --bg:#14181A;
+    --card:#1C2220;
+    --card-raised:#222925;
+    --line:#2B322E;
+    --text:#EDEEE8;
+    --sub:#8B948E;
+    --good:#6FA287;
+    --good-dim:#3A4A41;
+    --mid:#C9B25E;
+    --mid-dim:#4A452E;
+    --warn:#C97C4B;
+    --warn-dim:#4A3B2E;
+    --low:#7B8380;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{background:var(--bg); color:var(--text); font-family:'Zen Kaku Gothic New',sans-serif; -webkit-font-smoothing:antialiased; height:100%; overscroll-behavior:none;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  button,input{font-family:inherit;}
+
+  /* app shell */
+  .app{display:flex; flex-direction:column; height:100vh; max-width:480px; margin:0 auto; position:relative; background:var(--bg);}
+  #content{flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;}
+  .view{display:none; padding-bottom:24px;}
+  .view.active{display:block;}
+
+  header.vh{padding:28px 20px 18px;}
+  header.vh.compact{padding:20px 20px 14px; border-bottom:1px solid var(--line);}
+  .date-eyebrow{font-size:11px; letter-spacing:0.12em; color:var(--sub); font-family:'JetBrains Mono',monospace; text-transform:uppercase;}
+  .data-status{display:inline-flex; align-items:center; gap:6px; margin-top:10px; font-size:11px; color:var(--sub); background:var(--card); border:1px solid var(--line); padding:5px 10px; border-radius:20px;}
+  .data-status.live{color:var(--good); border-color:var(--good-dim); background:var(--good-dim);}
+  .data-status.error{color:var(--warn); border-color:var(--warn-dim); background:var(--warn-dim);}
+  h1{font-size:26px; font-weight:900; margin-top:4px; letter-spacing:-0.01em;}
+  header.vh.compact h1{font-size:22px; margin-top:2px;}
+
+  /* ---------- 今日 ---------- */
+  .condition{margin:4px 20px 22px; padding:22px; background:linear-gradient(155deg, var(--card-raised), var(--card)); border:1px solid var(--line); border-radius:18px; position:relative; overflow:hidden;}
+  .condition::after{content:""; position:absolute; top:-40px; right:-40px; width:140px; height:140px; border-radius:50%; background:radial-gradient(circle, rgba(111,162,135,0.16), transparent 70%);}
+  .condition-label{font-size:12px; color:var(--sub); letter-spacing:0.06em;}
+  .condition-status{font-size:32px; font-weight:900; color:var(--good); margin:6px 0 16px; display:flex; align-items:center; gap:10px;}
+  .condition-status .dot{width:10px; height:10px; border-radius:50%; background:var(--good); box-shadow:0 0 0 4px var(--good-dim);}
+  .condition-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; position:relative;}
+  .cstat{padding-top:10px; border-top:1px solid var(--line);}
+  .cstat .v{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700;}
+  .cstat .l{font-size:11px; color:var(--sub); margin-top:2px;}
+
+  .section-title{display:flex; align-items:baseline; justify-content:space-between; margin:0 20px 12px; padding-top:6px;}
+  .section-title h2{font-size:15px; font-weight:700;}
+  .section-title span{font-size:11px; color:var(--sub); font-family:'JetBrains Mono',monospace;}
+
+  .recs{display:flex; flex-direction:column; gap:10px; margin:0 20px 26px;}
+  .rec{display:flex; align-items:center; gap:14px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:14px; cursor:pointer; transition:border-color .15s, background .15s;}
+  .rec:active{transform:scale(0.985);}
+  .rec.selected{border-color:var(--good); background:var(--good-dim);}
+  .rec-num{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--sub); width:18px; flex-shrink:0;}
+  .rec-body{flex:1; min-width:0;}
+  .rec-title{font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;}
+  .badge{font-size:10px; font-weight:700; color:var(--bg); background:var(--sub); padding:2px 7px; border-radius:20px; letter-spacing:0.02em; flex-shrink:0;}
+  .badge.time{background:var(--good);}
+  .rec-reason{font-size:12px; color:var(--sub); margin-top:3px; line-height:1.5;}
+  .rec-check{width:22px; height:22px; border-radius:50%; border:1.5px solid var(--line); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:13px; color:transparent; transition:all .15s;}
+  .rec.selected .rec-check{background:var(--good); border-color:var(--good); color:var(--bg);}
+
+  .freeform{margin:0 20px 30px; padding:14px 16px; background:transparent; border:1px dashed var(--line); border-radius:14px; display:flex; align-items:center; gap:10px; color:var(--sub); font-size:13px;}
+  .freeform input{background:none; border:none; color:var(--text); font-size:14px; flex:1; outline:none;}
+  .freeform input::placeholder{color:var(--low);}
+
+  .inventory{margin:0 20px 8px; padding:20px; background:var(--card); border:1px solid var(--line); border-radius:18px;}
+  .inv-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;}
+  .inv-head h2{font-size:15px; font-weight:700;}
+  .inv-head span{font-size:11px; color:var(--sub); font-family:'JetBrains Mono',monospace;}
+  .inv-sub{font-size:12px; color:var(--sub); margin-bottom:16px; line-height:1.6;}
+  .inv-row{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .inv-row:last-child{margin-bottom:0;}
+  .inv-name{width:78px; flex-shrink:0; font-size:12.5px; color:var(--text);}
+  .inv-bar-track{flex:1; height:8px; background:var(--line); border-radius:5px; overflow:hidden; display:flex;}
+  .inv-bar-fill{height:100%; border-radius:5px;}
+  .inv-count{width:60px; flex-shrink:0; text-align:right; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--sub);}
+  .inv-count.priority{color:var(--warn); font-weight:700;}
+
+  /* context bars (quicklog / ai input) */
+  .context-bar{flex-shrink:0; background:rgba(28,34,32,0.95); border-top:1px solid var(--line);}
+  .quicklog{display:flex; padding:10px 12px;}
+  .ql-btn{flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:8px 4px; border-radius:12px; color:var(--sub); font-size:11px; background:none; border:none;}
+  .ql-btn .ic{font-size:19px;}
+  .ql-btn:active{background:rgba(255,255,255,0.05);}
+  .inputbar{display:flex; gap:10px; padding:12px 16px;}
+  .inputbar input{flex:1; background:var(--bg); border:1px solid var(--line); border-radius:22px; padding:11px 16px; color:var(--text); font-size:14px; outline:none;}
+  .inputbar input::placeholder{color:var(--low);}
+  .send{width:42px; height:42px; border-radius:50%; background:var(--good); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:16px; color:var(--bg); border:none;}
+
+  /* ---------- 共通カード ---------- */
+  .toggle{display:flex; margin:0 20px 20px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:4px;}
+  .toggle button{flex:1; padding:9px; border:none; background:none; color:var(--sub); font-family:inherit; font-size:13px; font-weight:700; border-radius:9px;}
+  .toggle button.active{background:var(--good-dim); color:var(--good);}
+
+  .summary{margin:0 20px 22px; padding:22px; background:linear-gradient(155deg, var(--card-raised), var(--card)); border:1px solid var(--line); border-radius:18px;}
+  .summary-label{font-size:12px; color:var(--sub);}
+  .summary-status{font-size:28px; font-weight:900; color:var(--good); margin:6px 0 14px;}
+  .summary-note{font-size:12.5px; color:var(--sub); line-height:1.7;}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 20px 26px;}
+  .gitem{padding:16px; background:var(--card); border:1px solid var(--line); border-radius:14px;}
+  .gitem-top{display:flex; justify-content:space-between; align-items:flex-start;}
+  .gitem-name{font-size:13px; color:var(--sub);}
+  .grade{font-family:'JetBrains Mono',monospace; font-size:20px; font-weight:700; width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center;}
+  .grade.A{background:var(--good-dim); color:var(--good);}
+  .grade.B{background:var(--mid-dim); color:var(--mid);}
+  .grade.C{background:var(--warn-dim); color:var(--warn);}
+  .gitem-desc{font-size:11.5px; color:var(--low); margin-top:10px; line-height:1.5;}
+
+  .focus{margin:0 20px 26px; padding:20px; background:var(--card); border:1px solid var(--line); border-radius:18px;}
+  .focus h2{font-size:15px; font-weight:700; margin-bottom:14px;}
+  .focus-item{display:flex; gap:12px; align-items:flex-start; margin-bottom:14px;}
+  .focus-item:last-child{margin-bottom:0;}
+  .focus-num{font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--warn); width:16px; flex-shrink:0; padding-top:1px;}
+  .focus-body b{font-size:13.5px; display:block; margin-bottom:3px;}
+  .focus-body p{font-size:12.5px; color:var(--sub); line-height:1.6;}
+
+  .nutri{margin:0 20px 26px; padding:20px; background:var(--card); border:1px solid var(--line); border-radius:18px;}
+  .nutri h2{font-size:15px; font-weight:700; margin-bottom:4px;}
+  .nutri-sub{font-size:11.5px; color:var(--sub); margin-bottom:16px;}
+  .nrow{display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-top:1px solid var(--line);}
+  .nrow:first-of-type{border-top:none;}
+  .nrow .n{font-size:13px;}
+  .nrow .s{font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; border-radius:6px; padding:2px 8px;}
+  .s.good{color:var(--good); background:var(--good-dim);}
+  .s.mid{color:var(--mid); background:var(--mid-dim);}
+  .s.warn{color:var(--warn); background:var(--warn-dim);}
+  .unknown-note{margin-top:14px; padding:10px 12px; background:var(--bg); border-radius:10px; font-size:11.5px; color:var(--low); line-height:1.6;}
+
+  /* ---------- 変化 ---------- */
+  .tabs{display:flex; gap:8px; margin:0 20px 22px; overflow-x:auto; padding-bottom:2px;}
+  .tabs button{flex-shrink:0; padding:8px 14px; border-radius:20px; border:1px solid var(--line); background:var(--card); color:var(--sub); font-size:12.5px; font-weight:700;}
+  .tabs button.active{background:var(--good-dim); color:var(--good); border-color:var(--good-dim);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  .hero{margin:0 20px 22px; padding:22px; background:linear-gradient(155deg, var(--card-raised), var(--card)); border:1px solid var(--line); border-radius:18px;}
+  .hero-label{font-size:12px; color:var(--sub);}
+  .hero-value{font-family:'JetBrains Mono',monospace; font-size:34px; font-weight:700; margin:6px 0 2px; display:flex; align-items:baseline; gap:8px;}
+  .hero-value .unit{font-size:14px; color:var(--sub); font-weight:400;}
+  .hero-delta{display:inline-flex; align-items:center; gap:4px; font-size:12.5px; color:var(--good); background:var(--good-dim); padding:4px 10px; border-radius:20px; margin-top:8px;}
+
+  .goal-card{margin:0 20px 22px; padding:20px; background:var(--card); border:1px solid var(--good-dim); border-radius:18px;}
+  .goal-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;}
+  .goal-top h2{font-size:14px; font-weight:700;}
+  .goal-edit{font-size:12px; color:var(--good); background:var(--good-dim); border:none; padding:6px 12px; border-radius:20px; font-weight:700;}
+  .goal-values{display:flex; align-items:center; gap:12px;}
+  .goal-values .side{text-align:center; flex-shrink:0;}
+  .goal-values .side .v{font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700;}
+  .goal-values .side .l{font-size:10.5px; color:var(--sub); margin-top:3px;}
+  .goal-values .side.target .v{color:var(--good);}
+  .goal-bar-wrap{flex:1;}
+  .goal-bar-track{height:8px; background:var(--line); border-radius:5px; overflow:hidden;}
+  .goal-bar-fill{height:100%; background:var(--good); border-radius:5px; transition:width .3s;}
+  .goal-note{margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; color:var(--sub); line-height:1.7;}
+
+  .chart-card{margin:0 20px 22px; padding:20px; background:var(--card); border:1px solid var(--line); border-radius:18px;}
+  .chart-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:16px;}
+  .chart-head h2{font-size:14px; font-weight:700;}
+  .chart-head span{font-size:11px; color:var(--sub); font-family:'JetBrains Mono',monospace;}
+  svg{width:100%; height:auto; display:block;}
+  .chart-note{margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font-size:12px; color:var(--sub); line-height:1.7;}
+  .compare{display:flex; justify-content:space-between; margin-top:6px;}
+  .compare div{text-align:center;}
+  .compare .m{font-size:11px; color:var(--low);}
+  .compare .v{font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:700; margin-top:2px;}
+  .compare .arrow{color:var(--good); font-size:16px; align-self:center;}
+
+  .stat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:0 20px 22px;}
+  .sitem{padding:14px 10px; background:var(--card); border:1px solid var(--line); border-radius:14px; text-align:center;}
+  .sitem .v{font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:700;}
+  .sitem .l{font-size:10.5px; color:var(--sub); margin-top:4px;}
+
+  .logrow{display:flex; justify-content:space-between; align-items:center; font-size:13px;}
+  .logrow .d{color:var(--sub); font-family:'JetBrains Mono',monospace; font-size:11px; width:60px;}
+  .logrow .m{flex:1;}
+  .logrow .v{font-family:'JetBrains Mono',monospace; color:var(--sub); font-size:12px;}
+  .soon{margin:0 20px; padding:40px 20px; text-align:center; color:var(--sub); font-size:13px; line-height:1.8;}
+
+  /* ---------- AIコーチ ---------- */
+  .thread{padding:20px; display:flex; flex-direction:column; gap:14px;}
+  .msg{max-width:82%; padding:12px 15px; border-radius:16px; font-size:14px; line-height:1.6;}
+  .msg.user{align-self:flex-end; background:var(--good-dim); color:var(--text); border-bottom-right-radius:5px;}
+  .ai-card{align-self:flex-start; max-width:88%; background:var(--card); border:1px solid var(--line); border-radius:16px; border-bottom-left-radius:5px; padding:14px 15px; font-size:14px; line-height:1.7;}
+  .ai-card .ref{margin-top:10px; padding-top:10px; border-top:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap;}
+  .ref-chip{font-size:11px; color:var(--sub); background:var(--bg); border:1px solid var(--line); padding:4px 9px; border-radius:20px; font-family:'JetBrains Mono',monospace;}
+  .suggestions{display:flex; gap:8px; padding:0 20px 4px; overflow-x:auto;}
+  .sugg{flex-shrink:0; font-size:12.5px; color:var(--good); background:var(--good-dim); padding:8px 14px; border-radius:20px; white-space:nowrap;}
+
+  /* ---------- bottom nav ---------- */
+  .bottom-nav{flex-shrink:0; display:flex; background:var(--card-raised); border-top:1px solid var(--line); padding:10px 6px calc(10px + env(safe-area-inset-bottom));}
+  .bottom-nav button{flex:1; background:none; border:none; color:var(--sub); font-size:12px; font-weight:700; padding:8px 4px; position:relative;}
+  .bottom-nav button.active{color:var(--good);}
+  .bottom-nav button.active::before{content:""; position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background:var(--good);}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <main id="content">
+
+    <!-- ============ 今日 ============ -->
+    <section class="view active" id="view-today">
+      <header class="vh">
+        <div class="date-eyebrow">2026年8月20日(木)</div>
+        <h1>今日</h1>
+        <div class="data-status" id="data-status">サンプルデータを表示中</div>
+      </header>
+
+      <div class="condition">
+        <div class="condition-label">今日のコンディション</div>
+        <div class="condition-status"><span class="dot"></span><span id="condition-text">良好</span></div>
+        <div class="condition-stats">
+          <div class="cstat"><div class="v" id="stat-sleep">7:04</div><div class="l">睡眠</div></div>
+          <div class="cstat"><div class="v" id="stat-activity">普通</div><div class="l">最近の運動量</div></div>
+          <div class="cstat"><div class="v" id="stat-legload">低い</div><div class="l">脚への負荷</div></div>
+        </div>
+      </div>
+
+      <div class="section-title"><h2>今日のおすすめ</h2><span>TAP TO SELECT</span></div>
+      <div class="recs">
+        <div class="rec">
+          <div class="rec-num">01</div>
+          <div class="rec-body">
+            <div class="rec-title">Easy Run 5km</div>
+            <div class="rec-reason">有酸素能力を伸ばす日として適しています。脚の負荷も低め。</div>
+          </div>
+          <div class="rec-check">✓</div>
+        </div>
+        <div class="rec">
+          <div class="rec-num">02</div>
+          <div class="rec-body">
+            <div class="rec-title">全身自宅筋トレ 30分</div>
+            <div class="rec-reason">直近7日間の筋トレ回数が少なめです。</div>
+          </div>
+          <div class="rec-check">✓</div>
+        </div>
+        <div class="rec">
+          <div class="rec-num">03</div>
+          <div class="rec-body">
+            <div class="rec-title">ウォーキング 45分</div>
+            <div class="rec-reason">軽く動きたい場合はこちら。</div>
+          </div>
+          <div class="rec-check">✓</div>
+        </div>
+        <div class="rec">
+          <div class="rec-num">04</div>
+          <div class="rec-body">
+            <div class="rec-title">自宅筋トレ 10分<span class="badge time">時短</span></div>
+            <div class="rec-reason">時間がない日でも、筋トレ種目を1〜2つだけ回して運動バランスを維持できます。</div>
+          </div>
+          <div class="rec-check">✓</div>
+        </div>
+      </div>
+
+      <div class="freeform">
+        <span>＋</span>
+        <input type="text" placeholder="自由入力（例: サッカー2時間）">
+      </div>
+
+      <div class="inventory">
+        <div class="inv-head"><h2>運動バランス</h2><span>7 DAYS</span></div>
+        <div class="inv-sub">曜日で決めず、直近7〜14日で必要な刺激が揃っているかを見ます。</div>
+        <div class="inv-row">
+          <div class="inv-name">Easy Run</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:66%; background:var(--good);"></div></div>
+          <div class="inv-count">2回</div>
+        </div>
+        <div class="inv-row">
+          <div class="inv-name">筋トレ</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:8%; background:var(--warn);"></div></div>
+          <div class="inv-count priority">0回・優先</div>
+        </div>
+        <div class="inv-row">
+          <div class="inv-name">スピード練習</div>
+          <div class="inv-bar-track"><div class="inv-bar-fill" style="width:8%; background:var(--warn);"></div></div>
+          <div class="inv-count priority">0回・優先</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 健康 ============ -->
+    <section class="view" id="view-health">
+      <header class="vh">
+        <div class="date-eyebrow">HEALTH REPORT</div>
+        <h1>健康</h1>
+      </header>
+
+      <div class="toggle" id="health-toggle">
+        <button class="active">7日</button>
+        <button>30日</button>
+      </div>
+
+      <div class="summary">
+        <div class="summary-label">総合健康状態</div>
+        <div class="summary-status">良好</div>
+        <div class="summary-note">直近30日は運動と体組成が安定して良く、心肺機能も緩やかに改善しています。睡眠時間とカルシウム摂取にはやや伸びしろがあります。</div>
+      </div>
+
+      <div class="section-title"><h2>項目別スコア</h2></div>
+      <div class="grid">
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">睡眠</span><span class="grade B">B</span></div><div class="gitem-desc">平均6:42。日によるばらつきがやや大きめ。</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">身体活動</span><span class="grade A">A</span></div><div class="gitem-desc">歩数・活動量ともに安定して目標圏内。</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">心肺</span><span class="grade B">B</span></div><div class="gitem-desc">同心拍でのペースが緩やかに向上中。</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">運動</span><span class="grade A">A</span></div><div class="gitem-desc">ラン・筋トレともに継続できています。</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">体組成</span><span class="grade B">B</span></div><div class="gitem-desc">体重はほぼ横ばい、腹囲がやや減少。</div></div>
+        <div class="gitem"><div class="gitem-top"><span class="gitem-name">栄養</span><span class="grade B">B</span></div><div class="gitem-desc">タンパク質は十分、カルシウムがやや不足。</div></div>
+      </div>
+
+      <div class="focus">
+        <h2>今月改善するなら</h2>
+        <div class="focus-item"><div class="focus-num">01</div><div class="focus-body"><b>睡眠時間</b><p>平均6:42と、目標の7時間をやや下回る日が続いています。就寝時刻を15分早めるだけでも変化が出やすい範囲です。</p></div></div>
+        <div class="focus-item"><div class="focus-num">02</div><div class="focus-body"><b>カルシウム摂取</b><p>過去4週間ではカルシウムの少ない食事構成が続いています。ヨーグルト、牛乳、豆腐、小魚などを少し増やすと改善しやすいです。</p></div></div>
+      </div>
+
+      <div class="nutri">
+        <h2>栄養（過去30日）</h2>
+        <div class="nutri-sub">日本人の食事摂取基準を目安に評価。◎良好 ○概ね良好 △やや不足</div>
+        <div class="nrow"><span class="n">タンパク質</span><span class="s good">◎</span></div>
+        <div class="nrow"><span class="n">食物繊維</span><span class="s good">○</span></div>
+        <div class="nrow"><span class="n">カルシウム</span><span class="s warn">△</span></div>
+        <div class="nrow"><span class="n">鉄</span><span class="s good">○</span></div>
+        <div class="nrow"><span class="n">ビタミンD</span><span class="s warn">△</span></div>
+        <div class="nrow"><span class="n">塩分</span><span class="s mid">やや多め</span></div>
+        <div class="nrow"><span class="n">ビタミンB群</span><span class="s good">○</span></div>
+        <div class="unknown-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。</div>
+      </div>
+    </section>
+
+    <!-- ============ 変化 ============ -->
+    <section class="view" id="view-change">
+      <header class="vh">
+        <div class="date-eyebrow">CHANGE</div>
+        <h1>変化</h1>
+      </header>
+
+      <div class="tabs" id="change-tabs">
+        <button class="active" data-panel="weight">体重</button>
+        <button data-panel="waist">腹囲</button>
+        <button data-panel="muscle">筋肉</button>
+        <button data-panel="run">5km</button>
+      </div>
+
+      <div class="panel active" id="panel-weight">
+        <div class="hero">
+          <div class="hero-label">体重（直近）</div>
+          <div class="hero-value" id="weight-hero-value">67.4<span class="unit">kg</span></div>
+          <div class="hero-delta" id="weight-hero-delta">↓ 0.8kg / 3ヶ月</div>
+        </div>
+        <div class="goal-card">
+          <div class="goal-top"><h2>目標</h2><button class="goal-edit" data-goal="weight">編集</button></div>
+          <div class="goal-values">
+            <div class="side"><div class="v" id="weight-current">67.4kg</div><div class="l">現在</div></div>
+            <div class="goal-bar-wrap"><div class="goal-bar-track"><div class="goal-bar-fill" id="weight-bar" style="width:44%;"></div></div></div>
+            <div class="side target"><div class="v" id="weight-target">65.0kg</div><div class="l">目標</div></div>
+          </div>
+          <div class="goal-note" id="weight-note">あと2.4kg。このペース（週0.2kg）なら目安は約12週間後です。</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>体重推移</h2><span>6ヶ月</span></div>
+          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
+            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
+            <polyline points="10,45 65,50 120,42 175,55 230,60 310,68" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="45" r="4" fill="#6FA287"/>
+            <circle cx="310" cy="68" r="4" fill="#6FA287"/>
+          </svg>
+          <div class="chart-note"><div class="compare"><div><div class="m">6月平均</div><div class="v">68.2kg</div></div><div class="arrow">→</div><div><div class="m">8月平均</div><div class="v">67.4kg</div></div></div></div>
+          <div class="chart-note" style="border-top:none; padding-top:8px;">単日ではなく7日平均で見ています。体重はほぼ横ばいながら緩やかな減少傾向です。</div>
+        </div>
+        <div class="stat-grid">
+          <div class="sitem"><div class="v">21.8</div><div class="l">BMI</div></div>
+          <div class="sitem"><div class="v">16.2%</div><div class="l">体脂肪率</div></div>
+          <div class="sitem"><div class="v">-0.3%</div><div class="l">3ヶ月変化</div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>体重ログ</h2><span>直近5件</span></div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="logrow"><span class="d">8/20</span><span class="m">起床後・空腹時</span><span class="v">67.3kg</span></div>
+            <div class="logrow" style="opacity:0.7;"><span class="d">8/17</span><span class="m">起床後・空腹時</span><span class="v">67.6kg</span></div>
+            <div class="logrow" style="opacity:0.5;"><span class="d">8/14</span><span class="m">起床後・空腹時</span><span class="v">67.8kg</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="panel-waist"><div class="soon">腹囲の推移・目標設定は近日対応予定です。</div></div>
+      <div class="panel" id="panel-muscle"><div class="soon">筋肉量の推移・目標設定は近日対応予定です。</div></div>
+
+      <div class="panel" id="panel-run">
+        <div class="hero">
+          <div class="hero-label">5kmベスト（直近）</div>
+          <div class="hero-value">24<span class="unit">分</span>18<span class="unit">秒</span></div>
+          <div class="hero-delta">↓ 42秒 / 3ヶ月</div>
+        </div>
+        <div class="goal-card">
+          <div class="goal-top"><h2>目標</h2><button class="goal-edit" data-goal="run">編集</button></div>
+          <div class="goal-values">
+            <div class="side"><div class="v" id="run-current">24:18</div><div class="l">現在</div></div>
+            <div class="goal-bar-wrap"><div class="goal-bar-track"><div class="goal-bar-fill" id="run-bar" style="width:58%;"></div></div></div>
+            <div class="side target"><div class="v" id="run-target">23:00</div><div class="l">目標</div></div>
+          </div>
+          <div class="goal-note" id="run-note">あと1分18秒。直近の改善ペース（3ヶ月で42秒）なら目安は約3ヶ月後です。</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>同じ心拍でのペース推移</h2><span>6ヶ月</span></div>
+          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
+            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
+            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
+            <polyline points="10,85 65,78 120,70 175,58 230,45 310,25" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="85" r="4" fill="#6FA287"/>
+            <circle cx="310" cy="25" r="4" fill="#6FA287"/>
+          </svg>
+          <div class="chart-note"><div class="compare"><div><div class="m">6月・心拍150</div><div class="v">7:10/km</div></div><div class="arrow">→</div><div><div class="m">8月・心拍149</div><div class="v">6:35/km</div></div></div></div>
+          <div class="chart-note" style="border-top:none; padding-top:8px;">同程度の心拍負荷で35秒/km速くなっています。有酸素能力が改善している可能性があります。</div>
+        </div>
+        <div class="stat-grid">
+          <div class="sitem"><div class="v">42km</div><div class="l">月間走行距離</div></div>
+          <div class="sitem"><div class="v">6:48</div><div class="l">Easy Run平均</div></div>
+          <div class="sitem"><div class="v">週2.4回</div><div class="l">走行頻度</div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><h2>ラン履歴</h2><span>直近5件</span></div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div class="logrow"><span class="d">8/20</span><span class="m">Easy Run 5.02km</span><span class="v">6:15/km・154bpm</span></div>
+            <div class="logrow" style="opacity:0.7;"><span class="d">8/17</span><span class="m">Interval 6×2min</span><span class="v">4:58/km・168bpm</span></div>
+            <div class="logrow" style="opacity:0.5;"><span class="d">8/14</span><span class="m">Easy Run 5.10km</span><span class="v">6:28/km・151bpm</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ AIコーチ ============ -->
+    <section class="view" id="view-ai">
+      <header class="vh compact">
+        <div class="date-eyebrow">AI COACH</div>
+        <h1>AIコーチ</h1>
+      </header>
+      <div class="thread">
+        <div class="msg user">今日は走る気分だけど脚が重い</div>
+        <div class="ai-card">
+          直近3日を見ると、8/17にインターバル（6×2分）をやっていて、脚への負荷はまだ抜けきっていないかもしれません。<br><br>
+          無理にペースを追わず、Easy Runで様子を見るか、脚が重いままなら今日はウォーキング45分に切り替えるのがおすすめです。
+          <div class="ref"><span class="ref-chip">8/17 Interval</span><span class="ref-chip">脚の負荷: 中〜高</span><span class="ref-chip">睡眠 7:04</span></div>
+        </div>
+        <div class="msg user">昨日食べすぎた</div>
+        <div class="ai-card">
+          昨日単体では大きな影響はありません。体重は7日平均で見ているので、1日の食べ過ぎで慌てて調整する必要はないです。<br><br>
+          ただ直近30日では塩分がやや多めの傾向があるので、今日は汁物を1品減らすくらいでちょうど良さそうです。
+          <div class="ref"><span class="ref-chip">7日平均体重 67.4kg</span><span class="ref-chip">塩分: やや多め</span></div>
+        </div>
+        <div class="msg user">今週ランニング1回しかできていない</div>
+        <div class="ai-card">
+          運動バランスを見ると、Easy Runが1回だけで、筋トレとスピード練習も0回です。曜日を気にする必要はないので、今日か明日で筋トレを1回はさんでおくとバランスが整います。<br><br>
+          5kmのペースへの影響も直近では出ていないので、焦らなくて大丈夫です。
+          <div class="ref"><span class="ref-chip">運動バランス: 筋トレ0</span><span class="ref-chip">スピード練習0</span></div>
+        </div>
+      </div>
+      <div class="suggestions">
+        <div class="sugg">今週の疲労具合は？</div>
+        <div class="sugg">5kmのペース、伸びてる？</div>
+        <div class="sugg">睡眠が最近浅い気がする</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- コンテキストバー（タブごとに切り替え） -->
+  <div class="context-bar" id="context-today">
+    <div class="quicklog">
+      <button class="ql-btn"><span class="ic">🍚</span>食事</button>
+      <button class="ql-btn"><span class="ic">⚖️</span>体重</button>
+      <button class="ql-btn"><span class="ic">🏋️</span>筋トレ</button>
+    </div>
+  </div>
+  <div class="context-bar" id="context-ai" style="display:none;">
+    <div class="inputbar">
+      <input type="text" placeholder="なんでも聞いてください">
+      <button class="send">↑</button>
+    </div>
+  </div>
+
+  <!-- ボトムナビ -->
+  <nav class="bottom-nav">
+    <button class="active" data-view="today">今日</button>
+    <button data-view="health">健康</button>
+    <button data-view="change">変化</button>
+    <button data-view="ai">AIコーチ</button>
+  </nav>
+</div>
+
+<script>
+  // ===== タブ（ボトムナビ）切り替え =====
+  const contextByView = { today:'context-today', ai:'context-ai' };
+  document.querySelectorAll('.bottom-nav button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('#content .view').forEach(v=>v.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('view-'+btn.dataset.view).classList.add('active');
+      document.getElementById('content').scrollTop = 0;
+
+      document.getElementById('context-today').style.display = 'none';
+      document.getElementById('context-ai').style.display = 'none';
+      const ctx = contextByView[btn.dataset.view];
+      if(ctx) document.getElementById(ctx).style.display = 'block';
+    });
+  });
+
+  // ===== 今日: おすすめ選択 =====
+  document.querySelectorAll('#view-today .rec').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      document.querySelectorAll('#view-today .rec').forEach(r=>r.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+  });
+
+  // ===== 健康: 期間トグル(見た目のみ) =====
+  document.querySelectorAll('#health-toggle button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#health-toggle button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // ===== 変化: タブ切り替え =====
+  document.querySelectorAll('#change-tabs button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#change-tabs button').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('#view-change .panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  // ===== 変化: 目標編集（体重） =====
+  document.querySelector('[data-goal="weight"]').addEventListener('click', ()=>{
+    const input = prompt('目標体重を入力してください（kg）', '65.0');
+    if(!input) return;
+    const target = parseFloat(input);
+    if(isNaN(target)) return;
+    const current = 67.4;
+    document.getElementById('weight-target').textContent = target.toFixed(1)+'kg';
+    const diff = (current - target).toFixed(1);
+    if(diff > 0){
+      const startDiff = 3.4;
+      const progress = Math.max(5, Math.min(95, ((startDiff-diff)/startDiff)*100));
+      document.getElementById('weight-bar').style.width = progress+'%';
+      document.getElementById('weight-note').textContent = `あと${diff}kg。このペース（週0.2kg）なら目安は約${Math.max(1,Math.round(diff/0.2))}週間後です。`;
+    } else {
+      document.getElementById('weight-bar').style.width = '100%';
+      document.getElementById('weight-note').textContent = '目標を達成しています。';
+    }
+  });
+
+  // ===== 変化: 目標編集（5km） =====
+  document.querySelector('[data-goal="run"]').addEventListener('click', ()=>{
+    const input = prompt('目標タイムを入力してください（分:秒）', '23:00');
+    if(!input || !input.includes(':')) return;
+    const [m,s] = input.split(':').map(Number);
+    if(isNaN(m)||isNaN(s)) return;
+    document.getElementById('run-target').textContent = input;
+    const currentSec = 24*60+18;
+    const targetSec = m*60+s;
+    const diffSec = currentSec - targetSec;
+    if(diffSec > 0){
+      const mm = Math.floor(diffSec/60), ss = diffSec%60;
+      document.getElementById('run-note').textContent = `あと${mm}分${ss}秒。直近の改善ペースが続けば数ヶ月単位が目安です。`;
+    } else {
+      document.getElementById('run-bar').style.width = '100%';
+      document.getElementById('run-note').textContent = '目標タイムを達成しています。';
+    }
+  });
+
+  // ===== 実データ取得（Cloudflare Worker /latest）=====
+  // ここにデプロイしたWorkerのURLを入れてください（末尾スラッシュなし）
+  const WORKER_URL = "https://health-coach-worker.yanadaiki.workers.dev";
+
+  function findMetric(metrics, candidates){
+    if(!metrics) return null;
+    for(const name of candidates){
+      const m = metrics.find(m => m.name === name);
+      if(m && m.data && m.data.length) return m;
+    }
+    return null;
+  }
+  function latestPoint(metric){
+    if(!metric || !metric.data || !metric.data.length) return null;
+    return metric.data[metric.data.length - 1];
+  }
+  function fmtMinutesToHM(mins){
+    const h = Math.floor(mins/60), m = Math.round(mins%60);
+    return `${h}:${String(m).padStart(2,'0')}`;
+  }
+  function setStatus(state, text){
+    const el = document.getElementById('data-status');
+    el.className = 'data-status' + (state ? ' '+state : '');
+    el.textContent = text;
+  }
+
+  async function loadRealData(){
+    if(!WORKER_URL || WORKER_URL.includes('YOUR-WORKER-SUBDOMAIN')){
+      setStatus('', 'サンプルデータを表示中（Worker URL未設定）');
+      return;
+    }
+    setStatus('', 'データ取得中...');
+    try{
+      const res = await fetch(`${WORKER_URL}/latest`);
+      if(!res.ok) throw new Error('no data');
+      const json = await res.json();
+      const metrics = json.data ? json.data.metrics : null;
+      if(!metrics) throw new Error('unexpected format');
+
+      // ---- 睡眠 ----
+      const sleep = findMetric(metrics, ['sleep_analysis']);
+      const sp = latestPoint(sleep);
+      if(sp){
+        // Mi Fitness経由だとasleep/totalSleepが0でinBedだけ値が入ることがあるため、
+        // totalSleep → asleep → inBed の順で採用する
+        const hours = (sp.totalSleep && sp.totalSleep > 0) ? sp.totalSleep
+                    : (sp.asleep && sp.asleep > 0) ? sp.asleep
+                    : (sp.inBed || null);
+        if(hours != null){
+          document.getElementById('stat-sleep').textContent = fmtMinutesToHM(hours*60);
+        }
+      }
+
+      // ---- 体重 ----
+      const weight = findMetric(metrics, ['weight_body_mass']);
+      const wp = latestPoint(weight);
+      if(wp && wp.qty != null){
+        const kg = wp.qty.toFixed(1);
+        document.getElementById('weight-hero-value').innerHTML = `${kg}<span class="unit">kg</span>`;
+        document.getElementById('weight-current').textContent = `${kg}kg`;
+      }
+
+      const updatedAt = json.metricsUpdatedAt ? new Date(json.metricsUpdatedAt) : null;
+      const label = updatedAt ? `実データ反映済み（${updatedAt.getMonth()+1}/${updatedAt.getDate()} ${String(updatedAt.getHours()).padStart(2,'0')}:${String(updatedAt.getMinutes()).padStart(2,'0')}更新）` : '実データ反映済み';
+      setStatus('live', label);
+
+    }catch(e){
+      setStatus('error', 'データ取得に失敗したためサンプルを表示中');
+      console.error(e);
+    }
+  }
+
+  loadRealData();
+</script>
+
+</body>
+</html>
