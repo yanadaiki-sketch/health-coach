@@ -296,6 +296,23 @@
     <div class="section-title" style="margin:20px 0 12px; padding:0;"><h2>または手入力</h2></div>
     <label class="field-label">上から順に1kmごとのラップタイムを入力（例: 8:48 または 8'48"）。まとめて貼り付けもOK</label>
     <textarea class="field-input" id="manual-laps-textarea" style="min-height:160px; font-family:'JetBrains Mono',monospace;" placeholder="8:48&#10;8:03&#10;7:43&#10;7:15&#10;6:41"></textarea>
+
+    <label class="field-label">心拍数(bpm)</label>
+    <div style="display:flex; gap:10px; margin-bottom:16px;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-avg-hr" placeholder="平均 例:138" style="margin-bottom:0;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-max-hr" placeholder="最大 例:167" style="margin-bottom:0;">
+    </div>
+    <label class="field-label">ケイデンス</label>
+    <div style="display:flex; gap:10px; margin-bottom:16px;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-avg-cadence" placeholder="平均 例:142" style="margin-bottom:0;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-max-cadence" placeholder="最大 例:168" style="margin-bottom:0;">
+    </div>
+    <label class="field-label">ストライド(cm)</label>
+    <div style="display:flex; gap:10px;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-avg-stride" placeholder="平均 例:84" style="margin-bottom:0;">
+      <input type="number" inputmode="numeric" class="field-input" id="input-max-stride" placeholder="最大 例:183" style="margin-bottom:0;">
+    </div>
+
     <button class="modal-submit" id="manual-laps-save-btn">保存</button>
     <button class="log-del-btn" id="manual-laps-delete-btn" style="display:none; margin-top:12px; width:100%; text-align:center;">この手入力データを削除</button>
     <div class="modal-note" style="margin-top:10px;">Mi Fitnessのスクリーンショットで「km毎のペース」の表を長押し選択→コピーし、ここに貼り付けることもできます（他の部分は含めないでください）。</div>
@@ -834,6 +851,20 @@
   // ここにデプロイしたWorkerのURLを入れてください（末尾スラッシュなし）
   const WORKER_URL = "https://health-coach-worker.yanadaiki.workers.dev";
 
+  // Health Auto Exportの日付は "2026-08-18 20:09:42 +0900" 形式（タイムゾーンの前にスペース）。
+  // これはSafariのDateパーサーでは正しく解釈できない（Invalid Dateになる）ため、
+  // 手動でISO 8601形式（"2026-08-18T20:09:42+09:00"）に変換してからDate化する。
+  function parseHealthDate(str){
+    if(!str) return new Date(NaN);
+    if(str instanceof Date) return str;
+    const m = String(str).trim().match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})\s*([+-]\d{2}):?(\d{2})$/);
+    if(m){
+      return new Date(`${m[1]}T${m[2]}${m[3]}:${m[4]}`);
+    }
+    // 上記パターンに合わなければ従来通りのフォールバック
+    return new Date(String(str).replace(' ', 'T'));
+  }
+
   function findMetric(metrics, candidates){
     if(!metrics) return null;
     for(const name of candidates){
@@ -943,7 +974,7 @@
   function updateWeightViews(workerWeightData){
     const hiddenKeys = new Set(JSON.parse(localStorage.getItem('hc_weight_hidden') || '[]'));
     const workerPoints = (workerWeightData || []).map(p => ({
-      date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ', hideKey: `w_${p.date}`
+      date: parseHealthDate(p.date), kg: p.qty, source: p.source || 'ウォッチ', hideKey: `w_${p.date}`
     })).filter(p => !isNaN(p.date) && p.kg != null && !hiddenKeys.has(p.hideKey));
     const manualPoints = loadLogs('hc_weight_logs').map(l => ({
       date: new Date(l.ts), kg: l.kg, source: '手入力', ts: l.ts
@@ -1036,7 +1067,7 @@
     const workouts = window.__latestWorkouts || [];
     const now = new Date();
     const twoDaysAgo = new Date(now.getTime() - 2*24*60*60*1000);
-    const recentHard = workouts.filter(w => new Date(w.start) >= twoDaysAgo && /ラン|run|インターバル|interval|筋トレ/i.test(w.name||''));
+    const recentHard = workouts.filter(w => parseHealthDate(w.start) >= twoDaysAgo && /ラン|run|インターバル|interval|筋トレ/i.test(w.name||''));
     const legLoadEl = document.getElementById('stat-legload');
     if(legLoadEl){
       legLoadEl.textContent = recentHard.length >= 2 ? '高い' : recentHard.length === 1 ? '中くらい' : '低い';
@@ -1064,7 +1095,7 @@
       const isKJ = /kj|kilojoule/i.test(metric.units || '');
       const byDate = {};
       metric.data.forEach(p=>{
-        const d = new Date(p.date.replace(' ', 'T'));
+        const d = parseHealthDate(p.date);
         if(d < since) return;
         const key = d.toDateString();
         byDate[key] = (byDate[key] || 0) + (p.qty || 0);
@@ -1173,7 +1204,7 @@
     const byDate = {};
     if(metric && metric.data){
       metric.data.forEach(p=>{
-        const d = new Date(p.date.replace(' ', 'T'));
+        const d = parseHealthDate(p.date);
         const key = d.toDateString();
         byDate[key] = (byDate[key] || 0) + (p.qty || 0);
       });
@@ -1198,7 +1229,7 @@
       return;
     }
     const now = new Date();
-    const points = metric.data.map(p => ({ date: new Date(p.date.replace(' ', 'T')), qty: p.qty })).filter(p => !isNaN(p.date));
+    const points = metric.data.map(p => ({ date: parseHealthDate(p.date), qty: p.qty })).filter(p => !isNaN(p.date));
     const recent = points.filter(p => (now - p.date) <= 7*24*60*60*1000);
     const baseline = points.filter(p => (now - p.date) > 7*24*60*60*1000 && (now - p.date) <= 35*24*60*60*1000);
     if(!recent.length || baseline.length < 3){
@@ -1247,7 +1278,7 @@
     const sorted = window.__latestWorkoutsSorted || [];
     const isRun = window.__isRun || (n => /ラン|run|ランニング/i.test(n||''));
     const isSpeed = window.__isSpeed || (n => /インターバル|interval|スピード/i.test(n||''));
-    const recent = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+    const recent = sorted.filter(w => parseHealthDate(w.start) >= sevenDaysAgo);
 
     const runCount = recent.filter(w => isRun(w.name) && !isSpeed(w.name)).length;
     const speedCount = recent.filter(w => isSpeed(w.name)).length;
@@ -1266,7 +1297,7 @@
   function computeHealthScores(days){
     const now = new Date();
     const since = new Date(now.getTime() - days*24*60*60*1000);
-    const workouts = (window.__latestWorkouts || []).filter(w => new Date(w.start) >= since);
+    const workouts = (window.__latestWorkouts || []).filter(w => parseHealthDate(w.start) >= since);
     const weightLogsAll = [
       ...loadLogs('hc_weight_logs').map(l => ({ date: new Date(l.ts), kg: l.kg })),
     ];
@@ -1320,7 +1351,7 @@
 
     // 心肺: 期間中のEasy Runペースを前半・後半で比較
     const easyRuns = workouts.filter(w => /ラン|run/i.test(w.name||'') && w.distance && w.duration)
-      .sort((a,b) => new Date(a.start) - new Date(b.start));
+      .sort((a,b) => parseHealthDate(a.start) - parseHealthDate(b.start));
     if(easyRuns.length >= 4){
       const half = Math.floor(easyRuns.length/2);
       const paceOf = w => (w.duration/60)/w.distance.qty;
@@ -1384,7 +1415,7 @@
 
   function fmtDateShort(dateStr){
     // "2026-08-20 10:00:00 +0900" のような形式からM/Dを作る
-    const d = new Date(dateStr.replace(' ', 'T'));
+    const d = parseHealthDate(dateStr);
     if(isNaN(d)) return dateStr;
     return `${d.getMonth()+1}/${d.getDate()}`;
   }
@@ -1395,7 +1426,7 @@
 
   function updateWorkouts(workouts){
     // 新しい順に並べる
-    const sorted = [...workouts].sort((a,b) => new Date(b.start) - new Date(a.start));
+    const sorted = [...workouts].sort((a,b) => parseHealthDate(b.start) - parseHealthDate(a.start));
     window.__latestWorkoutsSorted = sorted;
 
     const isRun = n => /ラン|run|ランニング/i.test(n||'');
@@ -1408,7 +1439,7 @@
     // ---- 今日画面: 最近の運動量 ----
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7*24*60*60*1000);
-    const recentWorkouts = sorted.filter(w => new Date(w.start) >= sevenDaysAgo);
+    const recentWorkouts = sorted.filter(w => parseHealthDate(w.start) >= sevenDaysAgo);
     const strengthDays = new Set(loadLogs('hc_strength_logs').filter(l => new Date(l.ts) >= sevenDaysAgo).map(l => new Date(l.ts).toDateString()));
     const totalRecent = recentWorkouts.length + strengthDays.size;
     const activityEl = document.getElementById('stat-activity');
@@ -1443,13 +1474,13 @@
 
     // ---- 月間集計（直近30日）----
     const thirtyDaysAgo = new Date(now.getTime() - 30*24*60*60*1000);
-    const runsLast30 = allRunsSorted.filter(w => new Date(w.start) >= thirtyDaysAgo);
+    const runsLast30 = allRunsSorted.filter(w => parseHealthDate(w.start) >= thirtyDaysAgo);
     const totalDistance = runsLast30.reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
     document.getElementById('stat-monthly-distance').textContent = `${totalDistance.toFixed(1)}km`;
 
     // ---- 今月（カレンダー月）の走行距離目標 ----
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thisMonthDistance = allRunsSorted.filter(w => new Date(w.start) >= firstOfMonth)
+    const thisMonthDistance = allRunsSorted.filter(w => parseHealthDate(w.start) >= firstOfMonth)
       .reduce((sum,w) => sum + (w.distance ? w.distance.qty : 0), 0);
     updateMonthlyDistanceGoal(thisMonthDistance);
 
@@ -1555,7 +1586,7 @@
     const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
-  function parseRouteDate(s){ return new Date(String(s).replace(' ', 'T')); }
+  function parseRouteDate(s){ return parseHealthDate(s); }
 
   function computeSplits(route){
     if(!route || route.length < 2) return [];
@@ -1629,13 +1660,17 @@
   }
 
   function renderSplitsFromArray(container, splits, isManual, w){
-    const paces = splits.map(s => s.partial ? (s.timeSec/60)/s.km : s.timeSec/60);
-    const minPace = Math.min(...paces), maxPace = Math.max(...paces);
+    // 「その1kmのタイム」そのものをグラフの高さに使う（端数区間は距離で正規化した参考ペースを使う）
+    const times = splits.map(s => s.partial ? (s.timeSec/s.km) : s.timeSec); // 秒/kmベース
+    const minTime = Math.min(...times), maxTime = Math.max(...times);
     const barsHtml = splits.map((s,i)=>{
-      const pace = paces[i];
-      const h = maxPace > minPace ? 20 + ((maxPace - pace)/(maxPace - minPace)) * 60 : 50;
-      const color = pace <= (minPace+maxPace)/2 ? 'var(--good)' : 'var(--warn)';
+      const t = times[i];
+      const h = maxTime > minTime ? 20 + ((maxTime - t)/(maxTime - minTime)) * 60 : 50; // 速い(タイムが短い)ほど高いバー
+      const color = t <= (minTime+maxTime)/2 ? 'var(--good)' : 'var(--warn)';
+      const m = Math.floor(s.timeSec/60), sec = Math.round(s.timeSec%60);
+      const timeLabel = `${m}:${String(sec).padStart(2,'0')}`;
       return `<div style="display:flex; flex-direction:column; align-items:center; gap:4px; flex:1;">
+        <div style="font-size:8px; color:var(--sub); white-space:nowrap;">${timeLabel}</div>
         <div style="width:100%; height:80px; display:flex; align-items:flex-end;">
           <div style="width:100%; height:${h}px; background:${color}; border-radius:4px 4px 0 0;"></div>
         </div>
@@ -1691,6 +1726,15 @@
     }).join('\n') : '';
     document.getElementById('manual-laps-textarea').value = existingText;
     document.getElementById('manual-laps-delete-btn').style.display = existing ? 'block' : 'none';
+
+    const extras = getManualRunExtras(w) || {};
+    document.getElementById('input-avg-hr').value = extras.avgHr ?? '';
+    document.getElementById('input-max-hr').value = extras.maxHr ?? '';
+    document.getElementById('input-avg-cadence').value = extras.avgCadence ?? '';
+    document.getElementById('input-max-cadence').value = extras.maxCadence ?? '';
+    document.getElementById('input-avg-stride').value = extras.avgStride ?? '';
+    document.getElementById('input-max-stride').value = extras.maxStride ?? '';
+
     openModal('modal-manual-laps');
   }
 
@@ -1761,12 +1805,17 @@
         }));
         saveManualLaps(w, splits);
       }
-      // 心拍・ケイデンス・ストライドを保存
-      saveManualRunExtras(w, {
-        avgHr: data.avgHr, maxHr: data.maxHr,
-        avgCadence: data.avgCadence, maxCadence: data.maxCadence,
-        avgStride: data.avgStride, maxStride: data.maxStride,
-      });
+      // 心拍・ケイデンス・ストライドを保存（既存の手入力値がある項目はAIがnullを返した場合上書きしない）
+      const prevExtras = getManualRunExtras(w) || {};
+      const newExtras = {
+        avgHr: data.avgHr ?? prevExtras.avgHr ?? null,
+        maxHr: data.maxHr ?? prevExtras.maxHr ?? null,
+        avgCadence: data.avgCadence ?? prevExtras.avgCadence ?? null,
+        maxCadence: data.maxCadence ?? prevExtras.maxCadence ?? null,
+        avgStride: data.avgStride ?? prevExtras.avgStride ?? null,
+        maxStride: data.maxStride ?? prevExtras.maxStride ?? null,
+      };
+      saveManualRunExtras(w, newExtras);
 
       statusEl.textContent = '読み取り完了！';
       setTimeout(()=>{
@@ -1794,32 +1843,62 @@
     const w = window.__currentRunDetailWorkout;
     if(!w) return;
     const raw = document.getElementById('manual-laps-textarea').value.trim();
-    if(!raw){ return; }
 
-    // "8'48"" "8:48" "8分48秒" など、貼り付けテキストの中から時間らしきパターンをすべて抽出する。
-    // Mi FitnessのLive Textコピーでは "1 8'48" 2 8'03" ..." のようにまとめて1行になることが多いため、
-    // 行区切りではなく正規表現でテキスト全体から探す。
-    const timePattern = /(\d{1,2})\s*[:'分]\s*(\d{1,2})\s*["秒]?/g;
-    const splits = [];
-    let match;
-    let lastIndex = -1;
-    while((match = timePattern.exec(raw)) !== null){
-      const m = Number(match[1]), s = Number(match[2]);
-      if(isNaN(m) || isNaN(s) || s >= 60) continue;
-      const totalSec = m*60 + s;
-      if(totalSec < 120 || totalSec > 1800) continue; // 2分/km未満・30分/km超は誤認識とみなす
-      // 直前の一致と近すぎる（同じ数字を誤って2回拾った）場合はスキップ
-      if(match.index - lastIndex < 2) continue;
-      lastIndex = match.index + match[0].length;
-      splits.push({ km: splits.length + 1, timeSec: totalSec });
+    let savedSomething = false;
+
+    if(raw){
+      // "8'48"" "8:48" "8分48秒" など、貼り付けテキストの中から時間らしきパターンをすべて抽出する。
+      // Mi FitnessのLive Textコピーでは "1 8'48" 2 8'03" ..." のようにまとめて1行になることが多いため、
+      // 行区切りではなく正規表現でテキスト全体から探す。
+      const timePattern = /(\d{1,2})\s*[:'分]\s*(\d{1,2})\s*["秒]?/g;
+      const splits = [];
+      let match;
+      let lastIndex = -1;
+      while((match = timePattern.exec(raw)) !== null){
+        const m = Number(match[1]), s = Number(match[2]);
+        if(isNaN(m) || isNaN(s) || s >= 60) continue;
+        const totalSec = m*60 + s;
+        if(totalSec < 120 || totalSec > 1800) continue; // 2分/km未満・30分/km超は誤認識とみなす
+        if(match.index - lastIndex < 2) continue;
+        lastIndex = match.index + match[0].length;
+        splits.push({ km: splits.length + 1, timeSec: totalSec });
+      }
+      if(!splits.length){
+        alert('時間の形式が読み取れませんでした。「8:48」または「8\'48"」のような形式で入力・貼り付けしてください。');
+        return;
+      }
+      saveManualLaps(w, splits);
+      savedSomething = true;
     }
-    if(!splits.length){
-      alert('時間の形式が読み取れませんでした。「8:48」または「8\'48"」のような形式で入力・貼り付けしてください。');
+
+    // 心拍・ケイデンス・ストライドは、入力されている項目だけ保存する
+    const numOrNull = (id) => {
+      const v = document.getElementById(id).value;
+      return v === '' ? null : Number(v);
+    };
+    const extras = {
+      avgHr: numOrNull('input-avg-hr'),
+      maxHr: numOrNull('input-max-hr'),
+      avgCadence: numOrNull('input-avg-cadence'),
+      maxCadence: numOrNull('input-max-cadence'),
+      avgStride: numOrNull('input-avg-stride'),
+      maxStride: numOrNull('input-max-stride'),
+    };
+    const hasAnyExtra = Object.values(extras).some(v => v != null);
+    if(hasAnyExtra){
+      // 既存値とマージ（一部だけ入力・修正した場合に他の項目を消さないため）
+      const merged = { ...(getManualRunExtras(w) || {}), ...extras };
+      saveManualRunExtras(w, merged);
+      savedSomething = true;
+    }
+
+    if(!savedSomething){
+      alert('ラップタイム、または心拍・ケイデンス・ストライドのいずれかを入力してください。');
       return;
     }
-    saveManualLaps(w, splits);
+
     closeModal('modal-manual-laps');
-    renderSplits(w);
+    openRunDetail(window.__allRunsSorted.indexOf(w));
   });
   document.getElementById('manual-laps-delete-btn').addEventListener('click', ()=>{
     const w = window.__currentRunDetailWorkout;
@@ -1914,7 +1993,7 @@
       return;
     }
     const pts = [...w.heartRate].map(h => ({
-      date: new Date((h.date||'').replace(' ','T')), bpm: h.Avg ?? h.avg ?? h.qty
+      date: parseHealthDate(h.date), bpm: h.Avg ?? h.avg ?? h.qty
     })).filter(p => !isNaN(p.date) && typeof p.bpm === 'number').sort((a,b)=>a.date-b.date);
     if(pts.length < 2){
       el.innerHTML = `<div class="modal-note">心拍の時系列データが不足しています。</div>`;
@@ -2269,7 +2348,7 @@
     loadLogs('hc_waist_logs').forEach(l => bump(new Date(l.ts)));
     loadLogs('hc_strength_logs').forEach(l => bump(new Date(l.ts)));
     loadLogs('hc_meal_logs').forEach(l => l.ts && bump(new Date(l.ts)));
-    (window.__latestWorkouts || []).forEach(w => bump(new Date(w.start)));
+    (window.__latestWorkouts || []).forEach(w => bump(parseHealthDate(w.start)));
 
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startWeekday = firstOfMonth.getDay(); // 0=日
@@ -2298,8 +2377,8 @@
     rangeEl.textContent = `${weekAgo.getMonth()+1}/${weekAgo.getDate()}〜今日`;
 
     const workouts = window.__latestWorkouts || [];
-    const thisWeekWorkouts = workouts.filter(w => new Date(w.start) >= weekAgo);
-    const lastWeekWorkouts = workouts.filter(w => new Date(w.start) >= twoWeeksAgo && new Date(w.start) < weekAgo);
+    const thisWeekWorkouts = workouts.filter(w => parseHealthDate(w.start) >= weekAgo);
+    const lastWeekWorkouts = workouts.filter(w => parseHealthDate(w.start) >= twoWeeksAgo && parseHealthDate(w.start) < weekAgo);
     const distOf = arr => arr.filter(w=>/ラン|run/i.test(w.name||'')).reduce((s,w)=>s+(w.distance?w.distance.qty:0),0);
     const thisDist = distOf(thisWeekWorkouts), lastDist = distOf(lastWeekWorkouts);
 
