@@ -287,6 +287,7 @@
     <div class="goal-card" style="border-color:var(--good-dim);">
       <div class="goal-top"><h2>AIで画像から読み取る</h2></div>
       <label class="field-label">Mi Fitnessのワークアウト詳細画面のスクリーンショットを選択してください</label>
+      <div class="modal-note" style="margin-bottom:10px;">「共有」機能で作られる縦に長い画像だと、縮小されて文字が読み取りにくくなることがあります。できれば「km毎のペース」の表が写っている、普通の1画面分のスクリーンショットを使ってください。</div>
       <input type="file" accept="image/*" id="screenshot-file-input" class="field-input" style="padding:10px;">
       <button class="modal-submit" id="analyze-screenshot-btn">画像から読み取る</button>
       <div class="modal-note" id="screenshot-analyze-status"></div>
@@ -1694,6 +1695,34 @@
   }
 
   // ---- スクリーンショットからAIで読み取る ----
+  // Mi Fitnessの共有画像は縦に長く8000pxを超えることがあるため、送信前に縮小する
+  function resizeImageForAnalysis(file, maxDim){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = (e) => { img.src = e.target.result; };
+      reader.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        const longSide = Math.max(width, height);
+        if(longSide > maxDim){
+          const scale = maxDim / longSide;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve({ base64: dataUrl.split(',')[1], mediaType: 'image/jpeg' });
+      };
+      img.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
   document.getElementById('analyze-screenshot-btn').addEventListener('click', async ()=>{
     const fileInput = document.getElementById('screenshot-file-input');
     const statusEl = document.getElementById('screenshot-analyze-status');
@@ -1706,16 +1735,11 @@
     }
     statusEl.textContent = '読み取り中...';
     try{
-      const base64 = await new Promise((resolve, reject)=>{
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const { base64, mediaType } = await resizeImageForAnalysis(file, 1568);
       const res = await fetch(`${WORKER_URL}/analyze-run-screenshot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64, mediaType: file.type || 'image/jpeg' })
+        body: JSON.stringify({ image: base64, mediaType })
       });
       if(!res.ok){
         const errJson = await res.json().catch(()=>({}));
