@@ -264,6 +264,12 @@
       <button class="chip-btn" data-ex="ヒップリフト">ヒップリフト</button>
       <button class="chip-btn" data-ex="カーフレイズ">カーフレイズ</button>
       <button class="chip-btn" data-ex="体幹">体幹</button>
+      <button class="chip-btn" data-ex="アームカール">アームカール</button>
+      <button class="chip-btn" data-ex="リストカール">リストカール</button>
+      <button class="chip-btn" data-ex="ショルダープレス">ショルダープレス</button>
+      <button class="chip-btn" data-ex="サイドレイズ">サイドレイズ</button>
+      <button class="chip-btn" data-ex="トライセップエクステンション">トライセップエクステンション</button>
+      <button class="chip-btn" data-ex="ランジ">ランジ</button>
     </div>
     <label class="field-label">レップ数（セットごとにスペース区切り。例: 12 11 10）</label>
     <input type="text" inputmode="numeric" class="field-input" id="input-strength" placeholder="12 11 10">
@@ -277,15 +283,14 @@
   <div class="modal-sheet">
     <div class="modal-head"><h3>睡眠時間を記録</h3><button class="modal-close" data-close>✕</button></div>
     <div class="modal-note" style="margin-bottom:14px;">Apple Health経由だと、夜中に一度目が覚めると睡眠が分割されて実際より短く記録されることがあります。Mi Fitnessアプリで表示されている実際の睡眠時間を入力すると、そちらを優先して使います。</div>
-    <label class="field-label">対象の晩</label>
-    <div class="chip-row" id="sleep-night-chips">
-      <button class="chip-btn active" data-offset="0">今朝（直近の晩）</button>
-      <button class="chip-btn" data-offset="1">昨晩</button>
-    </div>
+    <label class="field-label">対象の晩（寝始めた日を選択）</label>
+    <input type="date" class="field-input" id="input-sleep-date">
     <label class="field-label">睡眠時間（時間:分。例: 7:30）</label>
     <input type="text" inputmode="numeric" class="field-input" id="input-sleep" placeholder="7:30">
     <button class="modal-submit" id="submit-sleep">保存</button>
     <button class="log-del-btn" id="sleep-delete-btn" style="display:none; margin-top:12px; width:100%; text-align:center;">この晩の手入力を削除（自動取得値に戻す）</button>
+    <div class="section-title" style="margin:20px 0 10px; padding:0;"><h2>これまでの手入力</h2></div>
+    <div id="sleep-manual-list"><div class="soon">まだ手入力はありません。</div></div>
   </div>
 </div>
 
@@ -478,7 +483,8 @@
       <div class="chart-card" id="heatmap-card">
         <div class="chart-head"><h2>記録カレンダー</h2><span id="heatmap-month-label"></span></div>
         <div id="heatmap-grid" style="display:grid; grid-template-columns:repeat(7,1fr); gap:4px;"></div>
-        <div class="modal-note" style="margin-top:10px;">色が濃いほど、その日に多くの記録（運動・食事・体重など）があります。</div>
+        <div class="modal-note" style="margin-top:10px;">色が濃いほど、その日に多くの記録（運動・睡眠・体重など）があります。日付をタップすると詳細が見られます。</div>
+        <div id="heatmap-day-detail" style="display:none; margin-top:14px; padding-top:14px; border-top:1px solid var(--line); font-size:13px;"></div>
       </div>
 
       <div class="section-title"><h2>項目別スコア</h2></div>
@@ -610,6 +616,15 @@
         </div>
       </div>
       <div class="panel" id="panel-muscle">
+        <div class="chart-card" style="margin:0 20px 20px;">
+          <div class="chart-head"><h2>部位別ヒートマップ</h2><span>直近14日</span></div>
+          <div id="muscle-heatmap-svg" style="display:flex; justify-content:center; padding:10px 0;"></div>
+          <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:8px; font-size:10px; color:var(--sub);">
+            <span>やっていない</span>
+            <div style="width:60px; height:8px; border-radius:4px; background:linear-gradient(90deg, var(--line), var(--good));"></div>
+            <span>最近やった</span>
+          </div>
+        </div>
         <div id="muscle-log-container" style="padding:0 20px;"></div>
       </div>
 
@@ -2346,6 +2361,17 @@
     const base = new Date(Date.now() - 12*60*60*1000 - daysAgo*24*60*60*1000);
     return base.toDateString();
   }
+  function nightKeyForDateInputValue(yyyyMmDd){
+    // <input type="date"> の値(YYYY-MM-DD)を、寝始めた日として nightKey に変換する。
+    // nightTotals のキーは「寝始めた日の日付文字列」なので、そのままローカル日付として扱う。
+    const [y,m,d] = yyyyMmDd.split('-').map(Number);
+    return new Date(y, m-1, d, 12, 0, 0).toDateString();
+  }
+  function dateInputValueForNightKey(nightKey){
+    const d = new Date(nightKey);
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
   function todayStr(){
     const d = new Date();
     return `${d.getMonth()+1}/${d.getDate()}`;
@@ -2395,11 +2421,20 @@
     return { get: () => selected };
   }
   const strengthExerciseChip = setupChipGroup('strength-exercise-chips', 'data-ex');
-  const sleepNightChip = setupChipGroup('sleep-night-chips', 'data-offset');
 
   // ---- 睡眠の手入力 ----
   function openSleepModal(){
-    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const dateInput = document.getElementById('input-sleep-date');
+    // 未設定なら「今朝（直近の晩）」に相当する日付を初期値にする
+    if(!dateInput.value){
+      dateInput.value = dateInputValueForNightKey(nightKeyForOffset(0));
+    }
+    fillSleepFormForSelectedDate();
+    renderSleepManualList();
+  }
+  function fillSleepFormForSelectedDate(){
+    const dateInput = document.getElementById('input-sleep-date');
+    const key = nightKeyForDateInputValue(dateInput.value);
     const manualMap = loadSleepManualMap();
     const existing = manualMap[key];
     if(existing != null){
@@ -2411,7 +2446,32 @@
       document.getElementById('sleep-delete-btn').style.display = 'none';
     }
   }
-  document.getElementById('sleep-night-chips').addEventListener('chipchange', openSleepModal);
+  document.getElementById('input-sleep-date').addEventListener('change', fillSleepFormForSelectedDate);
+
+  function renderSleepManualList(){
+    const manualMap = loadSleepManualMap();
+    const keys = Object.keys(manualMap).sort((a,b)=> new Date(b)-new Date(a));
+    const listEl = document.getElementById('sleep-manual-list');
+    if(!keys.length){
+      listEl.innerHTML = '<div class="soon">まだ手入力はありません。</div>';
+      return;
+    }
+    listEl.innerHTML = keys.slice(0,20).map(k=>{
+      const d = new Date(k);
+      const h = Math.floor(manualMap[k]), m = Math.round((manualMap[k]-h)*60);
+      return `<div class="logrow-editable"><span class="d">${d.getMonth()+1}/${d.getDate()}</span><span class="m"></span><span class="v">${h}:${String(m).padStart(2,'0')}</span><button class="log-del-btn" data-night-key="${k}">削除</button></div>`;
+    }).join('');
+    listEl.querySelectorAll('[data-night-key]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const map = loadSleepManualMap();
+        delete map[btn.dataset.nightKey];
+        saveSleepManualMap(map);
+        renderSleepManualList();
+        fillSleepFormForSelectedDate();
+        loadRealData();
+      });
+    });
+  }
 
   document.getElementById('submit-sleep').addEventListener('click', ()=>{
     const raw = document.getElementById('input-sleep').value.trim();
@@ -2421,7 +2481,7 @@
       return;
     }
     const hours = parts[0] + parts[1]/60;
-    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const key = nightKeyForDateInputValue(document.getElementById('input-sleep-date').value);
     const manualMap = loadSleepManualMap();
     manualMap[key] = hours;
     saveSleepManualMap(manualMap);
@@ -2436,15 +2496,17 @@
       }
     }
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
-    closeModal('modal-sleep');
+    renderSleepManualList();
+    document.getElementById('sleep-delete-btn').style.display = 'block';
   });
 
   document.getElementById('sleep-delete-btn').addEventListener('click', ()=>{
-    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const key = nightKeyForDateInputValue(document.getElementById('input-sleep-date').value);
     const manualMap = loadSleepManualMap();
     delete manualMap[key];
     saveSleepManualMap(manualMap);
-    closeModal('modal-sleep');
+    fillSleepFormForSelectedDate();
+    renderSleepManualList();
     loadRealData(); // 自動取得値に戻すため再計算
   });
 
@@ -2495,7 +2557,13 @@
     'リュックローイング': 'リュックの重量を増やす、またはテンポを遅くして負荷を増やす',
     'ヒップリフト': '片足ヒップリフトへ移行',
     'カーフレイズ': '片足カーフレイズ、または段差を使って可動域を広げる',
-    '体幹': 'プランクの保持時間を延ばす、またはサイドプランクを追加'
+    '体幹': 'プランクの保持時間を延ばす、またはサイドプランクを追加',
+    'アームカール': '重量（水入りペットボトル等）を増やす、またはテンポを遅くする',
+    'リストカール': '重量を増やす、または可動域をフルに使ってゆっくり行う',
+    'ショルダープレス': '重量を増やす、またはアーノルドプレスに変更',
+    'サイドレイズ': '重量を増やす、またはテンポを遅くして負荷を増やす',
+    'トライセップエクステンション': '重量を増やす、または片手ずつ行うシングルアームに変更',
+    'ランジ': 'ダンベルを持つ、またはウォーキングランジに変更'
   };
   function renderStrengthRecent(ex){
     ex = ex || strengthExerciseChip.get();
@@ -2576,14 +2644,17 @@
   applyRecFilter();
 
   // ---- 筋トレのおすすめメニューを記録から動的に組み立てる ----
-  const ALL_EXERCISES = ['腕立て','ブルガリアンスクワット','リュックローイング','ヒップリフト','カーフレイズ','体幹'];
+  // CORE_EXERCISES: 「今日のおすすめ」の全身メニューに使う基本種目（増やしすぎるとメニューが長くなるため絞る）
+  // ALL_EXERCISES: 記録・筋肉タブ・ヒートマップで扱う全種目
+  const CORE_EXERCISES = ['腕立て','ブルガリアンスクワット','リュックローイング','ヒップリフト','カーフレイズ','体幹'];
+  const ALL_EXERCISES = [...CORE_EXERCISES, 'アームカール','リストカール','ショルダープレス','サイドレイズ','トライセップエクステンション','ランジ'];
 
   function getExercisesByRecency(){
     const logs = loadLogs(STORAGE_KEYS.strength);
     const lastDone = {};
-    ALL_EXERCISES.forEach(ex => lastDone[ex] = 0);
+    CORE_EXERCISES.forEach(ex => lastDone[ex] = 0);
     logs.forEach(l => { lastDone[l.exercise] = Math.max(lastDone[l.exercise] || 0, l.ts); });
-    return [...ALL_EXERCISES].sort((a,b) => (lastDone[a]||0) - (lastDone[b]||0));
+    return [...CORE_EXERCISES].sort((a,b) => (lastDone[a]||0) - (lastDone[b]||0));
   }
 
   function buildStrengthRecommendations(){
@@ -2614,8 +2685,87 @@
   }
   buildStrengthRecommendations();
 
+  // ---- 「筋肉」タブ: 部位別ヒートマップ ----
+  // 各種目を主に効く部位にざっくり対応させ、直近の頻度・直近度から「熱量」を算出し、
+  // 簡易的な人体図に色の濃淡で表示する。
+  const EXERCISE_TO_REGION = {
+    '腕立て': 'chest',
+    'ブルガリアンスクワット': 'quads',
+    'リュックローイング': 'back',
+    'ヒップリフト': 'glutes',
+    'カーフレイズ': 'calves',
+    '体幹': 'core',
+    'アームカール': 'biceps',
+    'リストカール': 'forearms',
+    'ショルダープレス': 'shoulders',
+    'サイドレイズ': 'shoulders',
+    'トライセップエクステンション': 'triceps',
+    'ランジ': 'quads',
+  };
+  function computeMuscleHeat(){
+    const logs = loadLogs(STORAGE_KEYS.strength);
+    const now = new Date();
+    const heat = { chest:0, back:0, core:0, quads:0, glutes:0, calves:0, biceps:0, triceps:0, forearms:0, shoulders:0 };
+    Object.entries(EXERCISE_TO_REGION).forEach(([ex, region])=>{
+      const exLogs = logs.filter(l => l.exercise === ex);
+      if(!exLogs.length) return;
+      const lastLog = exLogs[exLogs.length-1];
+      const daysSince = (now - new Date(lastLog.ts)) / (24*60*60*1000);
+      const recencyScore = Math.max(0, 1 - daysSince/14);
+      const last14Count = exLogs.filter(l => (now - new Date(l.ts))/(24*60*60*1000) <= 14).length;
+      const freqScore = Math.min(1, last14Count/4);
+      heat[region] = Math.max(heat[region] || 0, recencyScore*0.6 + freqScore*0.4);
+    });
+    return heat;
+  }
+
+  function renderMuscleHeatmap(){
+    const heat = computeMuscleHeat();
+    const colorFor = (v) => {
+      const alpha = 0.12 + Math.min(1, v) * 0.78;
+      return `rgba(111,162,135,${alpha.toFixed(2)})`;
+    };
+    const el = document.getElementById('muscle-heatmap-svg');
+    el.innerHTML = `
+      <svg viewBox="0 0 160 260" width="180" height="292">
+        <!-- 頭 -->
+        <circle cx="80" cy="20" r="14" fill="#2B322E"/>
+        <!-- 肩 -->
+        <circle cx="41" cy="42" r="9" fill="${colorFor(heat.shoulders)}" stroke="#2B322E" stroke-width="1"/>
+        <circle cx="119" cy="42" r="9" fill="${colorFor(heat.shoulders)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- 胸 -->
+        <ellipse cx="80" cy="58" rx="34" ry="22" fill="${colorFor(heat.chest)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- 二の腕（上腕：アームカール＝biceps、トライセップエクステンション＝tricepsを合成表示） -->
+        <rect x="33" y="46" width="14" height="32" rx="7" fill="${colorFor(Math.max(heat.biceps, heat.triceps))}" stroke="#2B322E" stroke-width="1"/>
+        <rect x="113" y="46" width="14" height="32" rx="7" fill="${colorFor(Math.max(heat.biceps, heat.triceps))}" stroke="#2B322E" stroke-width="1"/>
+        <!-- 前腕 -->
+        <rect x="34" y="80" width="12" height="26" rx="6" fill="${colorFor(heat.forearms)}" stroke="#2B322E" stroke-width="1"/>
+        <rect x="114" y="80" width="12" height="26" rx="6" fill="${colorFor(heat.forearms)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- 体幹（腹部） -->
+        <rect x="58" y="80" width="44" height="42" rx="10" fill="${colorFor(heat.core)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- 腰/お尻 -->
+        <ellipse cx="80" cy="132" rx="30" ry="16" fill="${colorFor(heat.glutes)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- もも -->
+        <rect x="52" y="145" width="20" height="55" rx="9" fill="${colorFor(heat.quads)}" stroke="#2B322E" stroke-width="1"/>
+        <rect x="88" y="145" width="20" height="55" rx="9" fill="${colorFor(heat.quads)}" stroke="#2B322E" stroke-width="1"/>
+        <!-- ふくらはぎ -->
+        <rect x="53" y="205" width="18" height="45" rx="8" fill="${colorFor(heat.calves)}" stroke="#2B322E" stroke-width="1"/>
+        <rect x="89" y="205" width="18" height="45" rx="8" fill="${colorFor(heat.calves)}" stroke="#2B322E" stroke-width="1"/>
+
+        <text x="80" y="62" text-anchor="middle" font-size="8" fill="var(--text)">胸</text>
+        <text x="80" y="105" text-anchor="middle" font-size="8" fill="var(--text)">体幹</text>
+        <text x="80" y="137" text-anchor="middle" font-size="8" fill="var(--text)">お尻</text>
+        <text x="62" y="175" text-anchor="middle" font-size="8" fill="var(--text)">もも</text>
+        <text x="62" y="230" text-anchor="middle" font-size="8" fill="var(--text)">ふくら</text>
+        <text x="146" y="62" text-anchor="middle" font-size="8" fill="var(--sub)">肩</text>
+        <text x="146" y="99" text-anchor="middle" font-size="8" fill="var(--sub)">腕</text>
+      </svg>
+    `;
+  }
+
   // ---- 「筋肉」タブ: 種目ごとの筋トレ履歴一覧 ----
   function renderMuscleTab(){
+    renderMuscleHeatmap();
     const logs = loadLogs(STORAGE_KEYS.strength);
     const container = document.getElementById('muscle-log-container');
     if(!logs.length){
@@ -2666,8 +2816,9 @@
     loadLogs('hc_weight_logs').forEach(l => bump(new Date(l.ts)));
     loadLogs('hc_waist_logs').forEach(l => bump(new Date(l.ts)));
     loadLogs('hc_strength_logs').forEach(l => bump(new Date(l.ts)));
-    loadLogs('hc_meal_logs').forEach(l => l.ts && bump(new Date(l.ts)));
     (window.__latestWorkouts || []).forEach(w => bump(parseHealthDate(w.start)));
+    // 睡眠（自動取得＋手入力、マージ済みのwindow.__sleepNightTotalsを使用）
+    Object.keys(window.__sleepNightTotals || {}).forEach(k => bump(new Date(k)));
 
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startWeekday = firstOfMonth.getDay(); // 0=日
@@ -2680,9 +2831,46 @@
       const isFuture = dateObj > now;
       const count = counts[dateObj.toDateString()] || 0;
       const lvClass = isFuture ? 'future' : count >= 4 ? 'lv3' : count >= 2 ? 'lv2' : count >= 1 ? 'lv1' : '';
-      html += `<div class="heat-cell ${lvClass}">${d}</div>`;
+      html += `<div class="heat-cell ${lvClass}" ${isFuture ? '' : `data-day="${d}" style="cursor:pointer;"`}>${d}</div>`;
     }
     grid.innerHTML = html;
+
+    grid.querySelectorAll('[data-day]').forEach(cell=>{
+      cell.addEventListener('click', ()=> showHeatmapDayDetail(parseInt(cell.dataset.day, 10)));
+    });
+  }
+
+  function showHeatmapDayDetail(day){
+    const now = new Date();
+    const dateObj = new Date(now.getFullYear(), now.getMonth(), day);
+    const key = dateObj.toDateString();
+    const detailEl = document.getElementById('heatmap-day-detail');
+
+    const lines = [];
+    const sleepH = (window.__sleepNightTotals || {})[key];
+    if(sleepH != null) lines.push(`😴 睡眠: ${fmtMinutesToHM(sleepH*60)}`);
+
+    const weightLog = loadLogs('hc_weight_logs').find(l => new Date(l.ts).toDateString() === key);
+    if(weightLog) lines.push(`⚖️ 体重: ${weightLog.kg.toFixed(1)}kg`);
+
+    const waistLog = loadLogs('hc_waist_logs').find(l => new Date(l.ts).toDateString() === key);
+    if(waistLog) lines.push(`📏 腹囲: ${waistLog.cm.toFixed(1)}cm`);
+
+    const strengthLogsForDay = loadLogs('hc_strength_logs').filter(l => new Date(l.ts).toDateString() === key);
+    if(strengthLogsForDay.length){
+      lines.push(`🏋️ 筋トレ: ${strengthLogsForDay.map(l=>l.exercise).join('・')}`);
+    }
+
+    const workoutsForDay = (window.__latestWorkouts || []).filter(w => parseHealthDate(w.start).toDateString() === key);
+    workoutsForDay.forEach(w=>{
+      const distKm = w.distance ? w.distance.qty.toFixed(2)+'km' : '';
+      lines.push(`🏃 ${w.name} ${distKm}`);
+    });
+
+    const m = now.getMonth()+1;
+    const bodyHtml = lines.length ? lines.map(l=>`<div style="padding:4px 0;">${l}</div>`).join('') : '<div class="soon">この日の記録はありません。</div>';
+    detailEl.innerHTML = `<div style="font-weight:700; margin-bottom:6px;">${m}/${day}の記録</div>${bodyHtml}`;
+    detailEl.style.display = 'block';
   }
 
   // ---- 週次ダイジェスト（今週 vs 先週）----
