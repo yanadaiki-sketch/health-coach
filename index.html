@@ -273,24 +273,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-meal">
-  <div class="modal-sheet">
-    <div class="modal-head"><h3>食事を記録</h3><button class="modal-close" data-close>✕</button></div>
-    <label class="field-label">タイミング</label>
-    <div class="chip-row" id="meal-slot-chips">
-      <button class="chip-btn active" data-slot="朝">朝</button>
-      <button class="chip-btn" data-slot="昼">昼</button>
-      <button class="chip-btn" data-slot="間食">間食</button>
-      <button class="chip-btn" data-slot="夜">夜</button>
-    </div>
-    <label class="field-label">食べたもの（簡単でOK）</label>
-    <textarea class="field-input" id="input-meal" placeholder="例: 鮭、ご飯、味噌汁、冷奴"></textarea>
-    <button class="modal-submit" id="submit-meal">保存</button>
-    <div class="modal-note" id="meal-ai-note">保存すると、AIがおおよその栄養価を推定します（AI連携が未設定の場合は記録のみ保存されます）。</div>
-    <div id="meal-recent-logs"></div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="modal-run-detail">
   <div class="modal-sheet">
     <div class="modal-head"><h3 id="run-detail-title">ラン詳細</h3><button class="modal-close" data-close>✕</button></div>
@@ -471,12 +453,6 @@
         <div class="modal-note" id="nutrition-source-note" style="margin-top:10px;">あすけん（Apple Health経由）と連携すると自動反映されます。</div>
         <div class="unknown-note" id="nutrition-status-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。</div>
       </div>
-
-      <div class="nutri" id="meal-log-section">
-        <h2>食事ログ</h2>
-        <div class="nutri-sub" id="meal-log-count">まだ記録がありません</div>
-        <div id="meal-log-list"></div>
-      </div>
     </section>
 
     <!-- ============ 変化 ============ -->
@@ -529,6 +505,7 @@
           <div style="display:flex; flex-direction:column; gap:4px;" id="weight-log-list">
             <div class="soon">まだ記録がありません。</div>
           </div>
+          <div id="weight-log-more-container"></div>
         </div>
       </div>
 
@@ -568,6 +545,7 @@
       </div>
 
       <div class="panel" id="panel-run">
+
         <div class="hero">
           <div class="hero-label">5kmベスト（直近）</div>
           <div class="hero-value" id="run-hero-value">24<span class="unit">分</span>18<span class="unit">秒</span></div>
@@ -663,7 +641,6 @@
   <!-- コンテキストバー（タブごとに切り替え） -->
   <div class="context-bar" id="context-today">
     <div class="quicklog">
-      <button class="ql-btn" id="open-meal"><span class="ic">🍚</span>食事</button>
       <button class="ql-btn" id="open-weight"><span class="ic">⚖️</span>体重</button>
       <button class="ql-btn" id="open-strength"><span class="ic">🏋️</span>筋トレ</button>
     </div>
@@ -942,14 +919,18 @@
 
   // ---- 体重の推移グラフ・増減幅・体重ログ一覧（Worker実データ＋手動ログを統合）----
   function updateWeightViews(workerWeightData){
+    const hiddenKeys = new Set(JSON.parse(localStorage.getItem('hc_weight_hidden') || '[]'));
     const workerPoints = (workerWeightData || []).map(p => ({
-      date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ'
-    })).filter(p => !isNaN(p.date) && p.kg != null);
+      date: new Date(p.date.replace(' ', 'T')), kg: p.qty, source: p.source || 'ウォッチ', hideKey: `w_${p.date}`
+    })).filter(p => !isNaN(p.date) && p.kg != null && !hiddenKeys.has(p.hideKey));
     const manualPoints = loadLogs('hc_weight_logs').map(l => ({
       date: new Date(l.ts), kg: l.kg, source: '手入力', ts: l.ts
     }));
     const all = [...workerPoints, ...manualPoints].sort((a,b) => a.date - b.date);
-    if(!all.length) return;
+    if(!all.length){
+      document.getElementById('weight-log-list').innerHTML = '<div class="soon">まだ記録がありません。</div>';
+      return;
+    }
 
     // グラフ（直近30件程度に間引き）
     const chartPoints = all.slice(-30);
@@ -990,19 +971,42 @@
       ? `${chartPoints.length}件の記録から作成。${diff < -0.1 ? '緩やかな減少傾向です。' : diff > 0.1 ? '緩やかな増加傾向です。' : 'ほぼ横ばいです。'}`
       : 'まだ記録が少ないため、傾向の判断には時間がかかります。';
 
-    // 体重ログ一覧（最新5件。手入力分のみ削除可能）
-    const recent5 = [...all].reverse().slice(0,5);
-    document.getElementById('weight-log-count').textContent = `直近${recent5.length}件`;
+    // 体重ログ一覧（最新20件。手入力は削除、ウォッチ由来は非表示にできる）
+    window.__allWeightPoints = all;
+    renderWeightLogList(20);
+  }
+
+  function renderWeightLogList(limit){
+    const all = window.__allWeightPoints || [];
+    const recent = [...all].reverse().slice(0, limit);
+    document.getElementById('weight-log-count').textContent = `直近${recent.length}件${all.length > limit ? `（全${all.length}件）` : ''}`;
     const logListEl = document.getElementById('weight-log-list');
-    logListEl.innerHTML = recent5.map((p,i)=>{
+    logListEl.innerHTML = recent.map((p,i)=>{
       const m = p.date.getMonth()+1, d = p.date.getDate();
-      const delBtn = p.ts ? `<button class="log-del-btn" data-del-ts="${p.ts}">削除</button>` : '';
-      return `<div class="logrow-editable" style="opacity:${(1-i*0.15).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m">${p.source}</span><span class="v">${p.kg.toFixed(1)}kg</span>${delBtn}</div>`;
+      const btn = p.ts
+        ? `<button class="log-del-btn" data-del-ts="${p.ts}">削除</button>`
+        : `<button class="log-del-btn" data-hide-key="${p.hideKey}">非表示</button>`;
+      return `<div class="logrow-editable" style="opacity:${(1-Math.min(i*0.06,0.6)).toFixed(2)};"><span class="d">${m}/${d}</span><span class="m">${p.source}</span><span class="v">${p.kg.toFixed(1)}kg</span>${btn}</div>`;
     }).join('');
     attachDeleteHandlers(logListEl, 'hc_weight_logs', ()=>{
       updateWeightViews(window.__lastWorkerWeightData || []);
       computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
     });
+    logListEl.querySelectorAll('[data-hide-key]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const hidden = JSON.parse(localStorage.getItem('hc_weight_hidden') || '[]');
+        hidden.push(btn.dataset.hideKey);
+        localStorage.setItem('hc_weight_hidden', JSON.stringify(hidden));
+        updateWeightViews(window.__lastWorkerWeightData || []);
+      });
+    });
+    const moreContainer = document.getElementById('weight-log-more-container');
+    if(all.length > limit){
+      moreContainer.innerHTML = `<button class="modal-submit" id="weight-show-all-btn" style="background:var(--card); color:var(--good); border:1px solid var(--good-dim); margin-top:10px;">すべて表示</button>`;
+      document.getElementById('weight-show-all-btn').addEventListener('click', ()=> renderWeightLogList(all.length));
+    } else {
+      moreContainer.innerHTML = '';
+    }
   }
 
   // ---- 今日画面: コンディション・脚への負荷を実データから判定 ----
@@ -1245,7 +1249,6 @@
       ...loadLogs('hc_weight_logs').map(l => ({ date: new Date(l.ts), kg: l.kg })),
     ];
     const weightInWindow = weightLogsAll.filter(p => p.date >= since);
-    const mealLogsInWindow = loadLogs('hc_meal_logs').filter(l => l.ts && new Date(l.ts) >= since);
 
     const setGrade = (key, grade, desc) => {
       const g = document.getElementById(`grade-${key}`);
@@ -1324,12 +1327,9 @@
       const grade = macroResult.proteinLevel === 'low' ? 'C' : macroResult.kcalLevel === 'ok' ? 'A' : 'B';
       setGrade('nutrition', grade, `あすけん経由で${macroResult.daysCovered}日分のカロリー・三大栄養素を取得。${macroResult.summary}`);
       if(nutritionNote) nutritionNote.textContent = `あすけん経由で${macroResult.daysCovered}日分のデータを反映中。`;
-    } else if(mealLogsInWindow.length === 0){
-      setGrade('nutrition', '-', '食事の記録がないため判断できません。');
-      if(nutritionNote) nutritionNote.textContent = 'あすけんと連携すると自動反映されます。';
     } else {
-      setGrade('nutrition', '-', `${mealLogsInWindow.length}件の食事記録がありますが、あすけん連携がまだ反映されていません。`);
-      if(nutritionNote) nutritionNote.textContent = `${mealLogsInWindow.length}件の食事記録があります。あすけんと連携すると自動反映されます。`;
+      setGrade('nutrition', '-', 'あすけんのデータがまだ反映されていません。');
+      if(nutritionNote) nutritionNote.textContent = 'あすけんと連携すると自動反映されます。';
     }
 
     // 総合評価・改善フォーカス
@@ -1525,7 +1525,7 @@
     }
   }
 
-  // ---- GPSルートから1kmラップを計算（RUNALYZE/Strava方式）----
+  // ---- GPSルートから1kmラップを計算（RUNALYZE方式）----
   function haversineKm(lat1, lon1, lat2, lon2){
     const R = 6371;
     const dLat = (lat2-lat1) * Math.PI/180;
@@ -1619,6 +1619,7 @@
       <div style="display:flex; gap:4px; margin-bottom:14px;">${barsHtml}</div>
       <div style="display:flex; flex-direction:column;">${rows}</div>
       ${splitNote ? `<div class="modal-note" style="margin-top:12px;">${splitNote}</div>` : ''}
+      <div class="modal-note" style="margin-top:8px; opacity:0.7;">Apple HealthのGPSルートから算出</div>
     `;
   }
 
@@ -1772,7 +1773,7 @@
   // =====================================================
   // ここから: 手動記録機能（localStorage）
   // =====================================================
-  const STORAGE_KEYS = { weight: 'hc_weight_logs', strength: 'hc_strength_logs', meal: 'hc_meal_logs', waist: 'hc_waist_logs' };
+  const STORAGE_KEYS = { weight: 'hc_weight_logs', strength: 'hc_strength_logs', waist: 'hc_waist_logs' };
 
   function loadLogs(key){
     try{ return JSON.parse(localStorage.getItem(key) || '[]'); }catch(e){ return []; }
@@ -1812,7 +1813,6 @@
   });
   document.getElementById('open-weight').addEventListener('click', ()=>{ renderWeightRecent(); openModal('modal-weight'); });
   document.getElementById('open-strength').addEventListener('click', ()=>{ renderStrengthRecent(); openModal('modal-strength'); });
-  document.getElementById('open-meal').addEventListener('click', ()=>{ renderMealRecent(); openModal('modal-meal'); });
 
   // ---- チップ選択の共通処理 ----
   function setupChipGroup(containerId, dataAttr){
@@ -1829,7 +1829,6 @@
     return { get: () => selected };
   }
   const strengthExerciseChip = setupChipGroup('strength-exercise-chips', 'data-ex');
-  const mealSlotChip = setupChipGroup('meal-slot-chips', 'data-slot');
 
   // ---- 体重記録 ----
   function renderWeightRecent(){
@@ -1928,51 +1927,6 @@
     recomputeExerciseBalance();
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
   });
-
-  // ---- 食事記録 ----
-  function renderMealRecent(){
-    const logs = loadLogs(STORAGE_KEYS.meal).slice(-5).reverse();
-    const el = document.getElementById('meal-recent-logs');
-    el.innerHTML = logs.map(l =>
-      `<div class="recent-log-row"><span>${l.date} ${l.slot}: ${l.text.length > 14 ? l.text.slice(0,14)+'…' : l.text}</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`).join('');
-    attachDeleteHandlers(el, STORAGE_KEYS.meal, ()=>{
-      renderMealRecent();
-      renderMealLogSection();
-      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
-    });
-  }
-  document.getElementById('submit-meal').addEventListener('click', async ()=>{
-    const text = document.getElementById('input-meal').value.trim();
-    if(!text) return;
-    const slot = mealSlotChip.get();
-    const logs = loadLogs(STORAGE_KEYS.meal);
-    const entry = { date: todayStr(), slot, text, ts: Date.now(), estimate: null };
-    logs.push(entry);
-    saveLogs(STORAGE_KEYS.meal, logs);
-    document.getElementById('input-meal').value = '';
-    renderMealRecent();
-    renderMealLogSection();
-    closeModal('modal-meal');
-    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
-    // AI栄養推定はWorkerのAIプロキシが設定されていれば非同期で試みる（未設定なら何もしない）
-    tryEstimateMealNutrition(entry);
-  });
-
-  async function tryEstimateMealNutrition(entry){
-    if(typeof AI_PROXY_URL === 'undefined' || !AI_PROXY_URL) return;
-    try{
-      const res = await fetch(`${AI_PROXY_URL}/estimate-meal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: entry.text })
-      });
-      if(!res.ok) return;
-      const data = await res.json();
-      const logs = loadLogs(STORAGE_KEYS.meal);
-      const target = logs.find(l => l.ts === entry.ts);
-      if(target){ target.estimate = data; saveLogs(STORAGE_KEYS.meal, logs); }
-    }catch(e){ console.error('meal estimate failed', e); }
-  }
 
   // ---- 今日使える時間・気分によるおすすめの絞り込み ----
   function applyRecFilter(){
@@ -2157,28 +2111,7 @@
     `;
   }
 
-  function renderMealLogSection(){
-    const logs = loadLogs(STORAGE_KEYS.meal).slice().reverse();
-    const countEl = document.getElementById('meal-log-count');
-    const listEl = document.getElementById('meal-log-list');
-    if(!logs.length){
-      countEl.textContent = 'まだ記録がありません。「今日」画面の下部から記録してみてください。';
-      listEl.innerHTML = '';
-      return;
-    }
-    countEl.textContent = `直近${Math.min(logs.length, 20)}件`;
-    listEl.innerHTML = logs.slice(0, 20).map(l=>{
-      const est = l.estimate ? `<span style="color:var(--sub); font-size:11px;"> ・約${l.estimate.kcal}kcal（推定）</span>` : '';
-      return `<div class="nrow" style="display:flex; justify-content:space-between; align-items:center;"><span class="n">${l.date} ${l.slot}: ${l.text}${est}</span><button class="log-del-btn" data-del-ts="${l.ts}">削除</button></div>`;
-    }).join('');
-    attachDeleteHandlers(listEl, STORAGE_KEYS.meal, ()=>{
-      renderMealLogSection();
-      computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
-    });
-  }
-  renderMealLogSection();
   document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', ()=>{
-    renderMealLogSection();
     computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
     renderHeatmap();
     renderWeeklyDigest();
