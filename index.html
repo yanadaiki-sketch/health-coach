@@ -192,7 +192,7 @@
   .thread{padding:20px; display:flex; flex-direction:column; gap:14px;}
   .msg{max-width:82%; padding:12px 15px; border-radius:16px; font-size:14px; line-height:1.6;}
   .msg.user{align-self:flex-end; background:var(--good-dim); color:var(--text); border-bottom-right-radius:5px;}
-  .ai-card{align-self:flex-start; max-width:88%; background:var(--card); border:1px solid var(--line); border-radius:16px; border-bottom-left-radius:5px; padding:14px 15px; font-size:14px; line-height:1.7;}
+  .ai-card{align-self:flex-start; max-width:88%; background:var(--card); border:1px solid var(--line); border-radius:16px; border-bottom-left-radius:5px; padding:14px 15px; font-size:14px; line-height:1.7; white-space:pre-wrap;}
   .ai-card .ref{margin-top:10px; padding-top:10px; border-top:1px solid var(--line); display:flex; gap:8px; flex-wrap:wrap;}
   .ref-chip{font-size:11px; color:var(--sub); background:var(--bg); border:1px solid var(--line); padding:4px 9px; border-radius:20px; font-family:'JetBrains Mono',monospace;}
   .suggestions{display:flex; gap:8px; padding:0 20px 4px; overflow-x:auto;}
@@ -270,6 +270,22 @@
     <button class="modal-submit" id="submit-strength">保存</button>
     <div class="progress-hint" id="strength-progress-hint"></div>
     <div id="strength-recent-logs"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-sleep">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>睡眠時間を記録</h3><button class="modal-close" data-close>✕</button></div>
+    <div class="modal-note" style="margin-bottom:14px;">Apple Health経由だと、夜中に一度目が覚めると睡眠が分割されて実際より短く記録されることがあります。Mi Fitnessアプリで表示されている実際の睡眠時間を入力すると、そちらを優先して使います。</div>
+    <label class="field-label">対象の晩</label>
+    <div class="chip-row" id="sleep-night-chips">
+      <button class="chip-btn active" data-offset="0">今朝（直近の晩）</button>
+      <button class="chip-btn" data-offset="1">昨晩</button>
+    </div>
+    <label class="field-label">睡眠時間（時間:分。例: 7:30）</label>
+    <input type="text" inputmode="numeric" class="field-input" id="input-sleep" placeholder="7:30">
+    <button class="modal-submit" id="submit-sleep">保存</button>
+    <button class="log-del-btn" id="sleep-delete-btn" style="display:none; margin-top:12px; width:100%; text-align:center;">この晩の手入力を削除（自動取得値に戻す）</button>
   </div>
 </div>
 
@@ -525,11 +541,18 @@
         </div>
         <div class="chart-card">
           <div class="chart-head"><h2>体重推移</h2><span id="weight-chart-span">実測データなし</span></div>
-          <svg viewBox="0 0 320 120" preserveAspectRatio="none" id="weight-chart-svg">
-            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="0" x2="320" y2="0" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4,3" id="weight-goal-line" style="display:none;"/>
+          <svg viewBox="0 0 320 150" preserveAspectRatio="none" id="weight-chart-svg" style="overflow:visible;">
+            <line x1="34" y1="15" x2="314" y2="15" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="55" x2="314" y2="55" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="95" x2="314" y2="95" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="10" x2="34" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="100" x2="314" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <text x="30" y="18" text-anchor="end" font-size="9" fill="#8B948E" id="weight-axis-max"></text>
+            <text x="30" y="58" text-anchor="end" font-size="9" fill="#8B948E" id="weight-axis-mid"></text>
+            <text x="30" y="98" text-anchor="end" font-size="9" fill="#8B948E" id="weight-axis-min"></text>
+            <text x="34" y="115" text-anchor="start" font-size="9" fill="#8B948E" id="weight-axis-date-start"></text>
+            <text x="314" y="115" text-anchor="end" font-size="9" fill="#8B948E" id="weight-axis-date-end"></text>
+            <line x1="34" y1="10" x2="314" y2="10" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="4,3" id="weight-goal-line" style="display:none;"/>
             <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="weight-chart-line"/>
           </svg>
           <div class="chart-note" id="weight-chart-note">体重を記録するとここにグラフが表示されます。</div>
@@ -564,10 +587,17 @@
         </div>
         <div class="chart-card">
           <div class="chart-head"><h2>腹囲推移</h2><span id="waist-chart-span">実測データなし</span></div>
-          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
-            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
+          <svg viewBox="0 0 320 150" preserveAspectRatio="none" style="overflow:visible;">
+            <line x1="34" y1="15" x2="314" y2="15" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="55" x2="314" y2="55" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="95" x2="314" y2="95" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="10" x2="34" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="100" x2="314" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <text x="30" y="18" text-anchor="end" font-size="9" fill="#8B948E" id="waist-axis-max"></text>
+            <text x="30" y="58" text-anchor="end" font-size="9" fill="#8B948E" id="waist-axis-mid"></text>
+            <text x="30" y="98" text-anchor="end" font-size="9" fill="#8B948E" id="waist-axis-min"></text>
+            <text x="34" y="115" text-anchor="start" font-size="9" fill="#8B948E" id="waist-axis-date-start"></text>
+            <text x="314" y="115" text-anchor="end" font-size="9" fill="#8B948E" id="waist-axis-date-end"></text>
             <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="waist-chart-line"/>
           </svg>
           <div class="chart-note" id="waist-chart-note">腹囲を記録するとここにグラフが表示されます。</div>
@@ -600,17 +630,21 @@
           <div class="goal-note" id="run-note">あと1分18秒。直近の改善ペース（3ヶ月で42秒）なら目安は約3ヶ月後です。</div>
         </div>
         <div class="chart-card">
-          <div class="chart-head"><h2>同じ心拍でのペース推移</h2><span>6ヶ月</span></div>
-          <svg viewBox="0 0 320 120" preserveAspectRatio="none">
-            <line x1="0" y1="30" x2="320" y2="30" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="60" x2="320" y2="60" stroke="#2B322E" stroke-width="1"/>
-            <line x1="0" y1="90" x2="320" y2="90" stroke="#2B322E" stroke-width="1"/>
-            <polyline points="10,85 65,78 120,70 175,58 230,45 310,25" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="10" cy="85" r="4" fill="#6FA287"/>
-            <circle cx="310" cy="25" r="4" fill="#6FA287"/>
+          <div class="chart-head"><h2>Easy Runペースの推移</h2><span>週平均・直近8週</span></div>
+          <svg viewBox="0 0 320 150" preserveAspectRatio="none" id="pace-trend-svg" style="overflow:visible;">
+            <line x1="34" y1="15" x2="314" y2="15" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="55" x2="314" y2="55" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="95" x2="314" y2="95" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="10" x2="34" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <line x1="34" y1="100" x2="314" y2="100" stroke="#2B322E" stroke-width="1"/>
+            <text x="30" y="18" text-anchor="end" font-size="9" fill="#8B948E" id="pace-axis-max"></text>
+            <text x="30" y="58" text-anchor="end" font-size="9" fill="#8B948E" id="pace-axis-mid"></text>
+            <text x="30" y="98" text-anchor="end" font-size="9" fill="#8B948E" id="pace-axis-min"></text>
+            <text x="34" y="115" text-anchor="start" font-size="9" fill="#8B948E" id="pace-axis-date-start"></text>
+            <text x="314" y="115" text-anchor="end" font-size="9" fill="#8B948E" id="pace-axis-date-end"></text>
+            <polyline points="" fill="none" stroke="#6FA287" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" id="pace-trend-line"/>
           </svg>
-          <div class="chart-note"><div class="compare"><div><div class="m">6月・心拍150</div><div class="v">7:10/km</div></div><div class="arrow">→</div><div><div class="m">8月・心拍149</div><div class="v">6:35/km</div></div></div></div>
-          <div class="chart-note" style="border-top:none; padding-top:8px;">同程度の心拍負荷で35秒/km速くなっています。有酸素能力が改善している可能性があります。</div>
+          <div class="modal-note" id="pace-trend-note" style="margin-top:10px;">Easy Runの記録が増えると、ここに週ごとの平均ペース推移が表示されます。</div>
         </div>
         <div class="stat-grid">
           <div class="sitem"><div class="v" id="stat-monthly-distance">42km</div><div class="l">月間走行距離</div></div>
@@ -648,30 +682,15 @@
         <div class="date-eyebrow">AI COACH</div>
         <h1>AIコーチ</h1>
       </header>
-      <div class="thread">
-        <div class="msg user">今日は走る気分だけど脚が重い</div>
+      <div class="thread" id="ai-thread">
         <div class="ai-card">
-          直近3日を見ると、8/17にインターバル（6×2分）をやっていて、脚への負荷はまだ抜けきっていないかもしれません。<br><br>
-          無理にペースを追わず、Easy Runで様子を見るか、脚が重いままなら今日はウォーキング45分に切り替えるのがおすすめです。
-          <div class="ref"><span class="ref-chip">8/17 Interval</span><span class="ref-chip">脚の負荷: 中〜高</span><span class="ref-chip">睡眠 7:04</span></div>
-        </div>
-        <div class="msg user">昨日食べすぎた</div>
-        <div class="ai-card">
-          昨日単体では大きな影響はありません。体重は7日平均で見ているので、1日の食べ過ぎで慌てて調整する必要はないです。<br><br>
-          ただ直近30日では塩分がやや多めの傾向があるので、今日は汁物を1品減らすくらいでちょうど良さそうです。
-          <div class="ref"><span class="ref-chip">7日平均体重 67.4kg</span><span class="ref-chip">塩分: やや多め</span></div>
-        </div>
-        <div class="msg user">今週ランニング1回しかできていない</div>
-        <div class="ai-card">
-          運動バランスを見ると、Easy Runが1回だけで、筋トレとスピード練習も0回です。曜日を気にする必要はないので、今日か明日で筋トレを1回はさんでおくとバランスが整います。<br><br>
-          5kmのペースへの影響も直近では出ていないので、焦らなくて大丈夫です。
-          <div class="ref"><span class="ref-chip">運動バランス: 筋トレ0</span><span class="ref-chip">スピード練習0</span></div>
+          こんにちは。あなたの睡眠・体重・運動の記録を踏まえて相談に乗ります。「今日は走る気分だけど脚が重い」「昨日食べすぎた」のように、なんでも聞いてください。
         </div>
       </div>
-      <div class="suggestions">
-        <div class="sugg">今週の疲労具合は？</div>
-        <div class="sugg">5kmのペース、伸びてる？</div>
-        <div class="sugg">睡眠が最近浅い気がする</div>
+      <div class="suggestions" id="ai-suggestions">
+        <div class="sugg" data-q="今週の疲労具合は？">今週の疲労具合は？</div>
+        <div class="sugg" data-q="5kmのペース、伸びてる？">5kmのペース、伸びてる？</div>
+        <div class="sugg" data-q="睡眠が最近浅い気がする">睡眠が最近浅い気がする</div>
       </div>
     </section>
 
@@ -682,12 +701,13 @@
     <div class="quicklog">
       <button class="ql-btn" id="open-weight"><span class="ic">⚖️</span>体重</button>
       <button class="ql-btn" id="open-strength"><span class="ic">🏋️</span>筋トレ</button>
+      <button class="ql-btn" id="open-sleep"><span class="ic">😴</span>睡眠</button>
     </div>
   </div>
   <div class="context-bar" id="context-ai" style="display:none;">
     <div class="inputbar">
-      <input type="text" placeholder="なんでも聞いてください">
-      <button class="send">↑</button>
+      <input type="text" placeholder="なんでも聞いてください" id="ai-chat-input">
+      <button class="send" id="ai-chat-send">↑</button>
     </div>
   </div>
 
@@ -901,18 +921,39 @@
       if(!metrics) throw new Error('unexpected format');
 
       // ---- 睡眠 ----
-      const sleep = findMetric(metrics, ['sleep_analysis']);
-      const sp = latestPoint(sleep);
+      // Health Auto Export経由だと、夜中に一度覚醒すると睡眠セッションが分割されて
+      // 記録されることがある（Apple Health側の仕様）。最新1件だけを見ると、
+      // 後半の短いセッションだけを拾ってしまい、実際より大幅に短く表示される。
+      // そのため「一晩（正午〜翌正午）」を単位として、同じ夜のセッションを合算する。
+      // さらに、手入力の値があればそちらを優先する（Apple Health側の分割問題を回避するため）。
+      const sleepMetric = findMetric(metrics, ['sleep_analysis']);
+      const nightTotals = {};
+      if(sleepMetric && sleepMetric.data && sleepMetric.data.length){
+        const sleepPoints = sleepMetric.data.map(p => {
+          const hours = (p.totalSleep && p.totalSleep > 0) ? p.totalSleep
+                      : (p.asleep && p.asleep > 0) ? p.asleep
+                      : (p.inBed || 0);
+          return { date: parseHealthDate(p.date), hours };
+        }).filter(p => !isNaN(p.date));
+
+        sleepPoints.forEach(p=>{
+          // 正午を境界にすることで、日をまたぐ複数セッションを同じ「一晩」として扱う
+          const nightKey = new Date(p.date.getTime() - 12*60*60*1000).toDateString();
+          nightTotals[nightKey] = (nightTotals[nightKey] || 0) + p.hours;
+        });
+      }
+      // 手入力があれば上書き
+      const manualSleep = loadSleepManualMap();
+      Object.assign(nightTotals, manualSleep);
+
       let latestSleepHours = null;
-      if(sp){
-        // Mi Fitness経由だとasleep/totalSleepが0でinBedだけ値が入ることがあるため、
-        // totalSleep → asleep → inBed の順で採用する
-        latestSleepHours = (sp.totalSleep && sp.totalSleep > 0) ? sp.totalSleep
-                    : (sp.asleep && sp.asleep > 0) ? sp.asleep
-                    : (sp.inBed || null);
-        if(latestSleepHours != null){
-          document.getElementById('stat-sleep').textContent = fmtMinutesToHM(latestSleepHours*60);
-        }
+      const nightKeys = Object.keys(nightTotals).sort((a,b) => new Date(a) - new Date(b));
+      if(nightKeys.length){
+        latestSleepHours = nightTotals[nightKeys[nightKeys.length - 1]];
+      }
+      window.__sleepNightTotals = nightTotals; // 健康画面などで期間平均に使えるよう保持
+      if(latestSleepHours != null){
+        document.getElementById('stat-sleep').textContent = fmtMinutesToHM(latestSleepHours*60);
       }
 
       // ---- 体重（全履歴を保持してグラフ・増減・BMIに使う）----
@@ -993,18 +1034,30 @@
     const allValsForRange = hasGoal ? [...kgs, goalKg] : kgs;
     const minKg = Math.min(...allValsForRange), maxKg = Math.max(...allValsForRange);
     const range = (maxKg - minKg) || 1;
-    const W = 320, H = 120, pad = 10;
+    // プロット領域: x=34〜314, y=10(上)〜100(下)
+    const plotX0 = 34, plotX1 = 314, plotY0 = 10, plotY1 = 100;
     const svgPoints = chartPoints.map((p,i)=>{
-      const x = pad + (i/(Math.max(chartPoints.length-1,1))) * (W - pad*2);
-      const y = (H - pad) - ((p.kg - minKg)/range) * (H - pad*2);
+      const x = plotX0 + (i/(Math.max(chartPoints.length-1,1))) * (plotX1 - plotX0);
+      const y = plotY1 - ((p.kg - minKg)/range) * (plotY1 - plotY0);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
     document.getElementById('weight-chart-line').setAttribute('points', svgPoints);
     document.getElementById('weight-chart-span').textContent = `直近${chartPoints.length}件`;
 
+    // 縦軸ラベル（最大・中央・最小）
+    document.getElementById('weight-axis-max').textContent = `${maxKg.toFixed(1)}kg`;
+    document.getElementById('weight-axis-mid').textContent = `${((maxKg+minKg)/2).toFixed(1)}kg`;
+    document.getElementById('weight-axis-min').textContent = `${minKg.toFixed(1)}kg`;
+    // 横軸ラベル（最初と最後の日付）
+    const fmtAxisDate = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+    document.getElementById('weight-axis-date-start').textContent = fmtAxisDate(chartPoints[0].date);
+    document.getElementById('weight-axis-date-end').textContent = fmtAxisDate(chartPoints[chartPoints.length-1].date);
+
     const goalLineEl = document.getElementById('weight-goal-line');
     if(hasGoal){
-      const goalY = (H - pad) - ((goalKg - minKg)/range) * (H - pad*2);
+      const goalY = plotY1 - ((goalKg - minKg)/range) * (plotY1 - plotY0);
+      goalLineEl.setAttribute('x1', plotX0);
+      goalLineEl.setAttribute('x2', plotX1);
       goalLineEl.setAttribute('y1', goalY.toFixed(1));
       goalLineEl.setAttribute('y2', goalY.toFixed(1));
       goalLineEl.style.display = 'block';
@@ -1170,10 +1223,10 @@
     const cms = chartPoints.map(p=>p.cm);
     const minCm = Math.min(...cms), maxCm = Math.max(...cms);
     const range = (maxCm - minCm) || 1;
-    const W = 320, H = 120, pad = 10;
+    const plotX0 = 34, plotX1 = 314, plotY0 = 10, plotY1 = 100;
     const svgPoints = chartPoints.map((p,i)=>{
-      const x = pad + (i/(Math.max(chartPoints.length-1,1))) * (W - pad*2);
-      const y = (H - pad) - ((p.cm - minCm)/range) * (H - pad*2);
+      const x = plotX0 + (i/(Math.max(chartPoints.length-1,1))) * (plotX1 - plotX0);
+      const y = plotY1 - ((p.cm - minCm)/range) * (plotY1 - plotY0);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
     document.getElementById('waist-chart-line').setAttribute('points', svgPoints);
@@ -1181,6 +1234,14 @@
     document.getElementById('waist-chart-note').textContent = all.length >= 3
       ? `${diff < -0.1 ? '緩やかな減少傾向です。' : diff > 0.1 ? '緩やかな増加傾向です。' : 'ほぼ横ばいです。'}`
       : 'まだ記録が少ないため、傾向の判断には時間がかかります。';
+
+    // 縦軸・横軸ラベル
+    document.getElementById('waist-axis-max').textContent = `${maxCm.toFixed(1)}cm`;
+    document.getElementById('waist-axis-mid').textContent = `${((maxCm+minCm)/2).toFixed(1)}cm`;
+    document.getElementById('waist-axis-min').textContent = `${minCm.toFixed(1)}cm`;
+    const fmtAxisDateW = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+    document.getElementById('waist-axis-date-start').textContent = fmtAxisDateW(chartPoints[0].date);
+    document.getElementById('waist-axis-date-end').textContent = fmtAxisDateW(chartPoints[chartPoints.length-1].date);
 
     const recent5 = [...all].reverse().slice(0,5);
     document.getElementById('waist-log-count').textContent = `直近${recent5.length}件`;
@@ -1312,12 +1373,19 @@
       d.textContent = desc;
     };
 
-    // 睡眠: 直近の睡眠時間（今は最新1点のみ取得できているため簡易判定）
-    const sleepH = window.__latestSleepHours;
+    // 睡眠: 選択中の期間（7日/30日）の平均睡眠時間で評価（一晩単位で合算済みのデータを使用）
+    const nightTotals = window.__sleepNightTotals || {};
+    const nightsInWindow = Object.entries(nightTotals)
+      .filter(([dateStr]) => new Date(dateStr) >= since)
+      .map(([, hours]) => hours);
+    const sleepH = nightsInWindow.length
+      ? nightsInWindow.reduce((a,b)=>a+b,0) / nightsInWindow.length
+      : window.__latestSleepHours;
+    const sleepDaysNote = nightsInWindow.length ? `直近${nightsInWindow.length}晩の平均` : '直近の記録';
     if(sleepH != null){
-      if(sleepH >= 6.5) setGrade('sleep', 'A', `直近の記録で${sleepH.toFixed(1)}時間。目標の7時間に近い状態です。`);
-      else if(sleepH >= 5.5) setGrade('sleep', 'B', `直近の記録で${sleepH.toFixed(1)}時間。目標の7時間よりやや短めです。`);
-      else setGrade('sleep', 'C', `直近の記録で${sleepH.toFixed(1)}時間。睡眠不足の可能性があります。`);
+      if(sleepH >= 6.5) setGrade('sleep', 'A', `${sleepDaysNote}で${sleepH.toFixed(1)}時間。目標の7時間に近い状態です。`);
+      else if(sleepH >= 5.5) setGrade('sleep', 'B', `${sleepDaysNote}で${sleepH.toFixed(1)}時間。目標の7時間よりやや短めです。`);
+      else setGrade('sleep', 'C', `${sleepDaysNote}で${sleepH.toFixed(1)}時間。睡眠不足の可能性があります。`);
     } else {
       setGrade('sleep', '-', 'データ不足のため判断できません。');
     }
@@ -1531,6 +1599,7 @@
       });
     }
     window.__renderRunRows = renderRunRows;
+    renderPaceTrend(allRunsSorted);
 
     // ---- 自己ベスト（全期間）----
     if(allRunsSorted.length){
@@ -2046,6 +2115,191 @@
     return { key:'easy', label:'Easy' };
   }
 
+  // ---- Easy Runペースの週次推移（簡易版）----
+  // 「同じ心拍でのペース比較」は精密な分析が必要なため、直近8週間のEasy Run平均ペースの推移という
+  // シンプルで誇張のない指標に置き換えている。
+  function renderPaceTrend(allRunsSorted){
+    const easyRuns = allRunsSorted.filter(w => classifyRunTypeGlobal(w).key === 'easy' && w.distance && w.duration);
+    const now = new Date();
+    const weeks = [];
+    for(let i=7; i>=0; i--){
+      const weekStart = new Date(now.getTime() - (i+1)*7*24*60*60*1000);
+      const weekEnd = new Date(now.getTime() - i*7*24*60*60*1000);
+      const inWeek = easyRuns.filter(w=>{
+        const d = parseHealthDate(w.start);
+        return d >= weekStart && d < weekEnd;
+      });
+      const avgPace = inWeek.length ? inWeek.reduce((s,w)=>s+(w.duration/60)/w.distance.qty,0)/inWeek.length : null;
+      weeks.push({ weekEnd, avgPace });
+    }
+    const points = weeks.filter(w => w.avgPace != null);
+    const noteEl = document.getElementById('pace-trend-note');
+
+    if(points.length < 2){
+      noteEl.textContent = points.length === 1
+        ? 'Easy Runの記録が1週分しかないため、推移はまだ表示できません。'
+        : 'Easy Runの記録が増えると、ここに週ごとの平均ペース推移が表示されます。';
+      document.getElementById('pace-trend-line').setAttribute('points', '');
+      ['pace-axis-max','pace-axis-mid','pace-axis-min','pace-axis-date-start','pace-axis-date-end'].forEach(id=>{
+        document.getElementById(id).textContent = '';
+      });
+      return;
+    }
+
+    const paces = points.map(p=>p.avgPace);
+    const minPace = Math.min(...paces), maxPace = Math.max(...paces);
+    const range = (maxPace - minPace) || 0.1;
+    const plotX0 = 34, plotX1 = 314, plotY0 = 10, plotY1 = 100;
+    const svgPoints = points.map((p,i)=>{
+      const x = plotX0 + (i/(Math.max(points.length-1,1))) * (plotX1 - plotX0);
+      const y = plotY1 - ((maxPace - p.avgPace)/range) * (plotY1 - plotY0); // 速い(小さい)ほど上
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    document.getElementById('pace-trend-line').setAttribute('points', svgPoints);
+
+    document.getElementById('pace-axis-max').textContent = fmtPace(minPace); // グラフ上部=速いペース
+    document.getElementById('pace-axis-mid').textContent = fmtPace((minPace+maxPace)/2);
+    document.getElementById('pace-axis-min').textContent = fmtPace(maxPace);
+    const fmtWeekLabel = (d) => `${d.getMonth()+1}/${d.getDate()}`;
+    document.getElementById('pace-axis-date-start').textContent = fmtWeekLabel(points[0].weekEnd);
+    document.getElementById('pace-axis-date-end').textContent = fmtWeekLabel(points[points.length-1].weekEnd);
+
+    const first = points[0].avgPace, last = points[points.length-1].avgPace;
+    const diffSec = Math.round((first - last) * 60);
+    if(diffSec > 5){
+      noteEl.textContent = `直近8週間で、Easy Runの平均ペースが約${diffSec}秒/km速くなっています。`;
+    } else if(diffSec < -5){
+      noteEl.textContent = `直近8週間で、Easy Runの平均ペースが約${Math.abs(diffSec)}秒/km遅くなっています。`;
+    } else {
+      noteEl.textContent = `直近8週間、Easy Runの平均ペースはほぼ横ばいです。`;
+    }
+  }
+
+  // ===== AIコーチ =====
+  const AI_CHAT_HISTORY_KEY = 'hc_ai_chat_history';
+
+  function buildAICoachContext(){
+    const lines = [];
+    if(window.__latestSleepHours != null){
+      lines.push(`直近の睡眠時間: 約${window.__latestSleepHours.toFixed(1)}時間`);
+    }
+    const weightNow = document.getElementById('weight-current');
+    if(weightNow && weightNow.textContent && weightNow.textContent !== '-') lines.push(`直近の体重: ${weightNow.textContent}`);
+    const weightGoal = localStorage.getItem('hc_goal_weight_kg');
+    if(weightGoal) lines.push(`体重の目標: ${weightGoal}kg`);
+    const runGoal = localStorage.getItem('hc_goal_run_time');
+    if(runGoal) lines.push(`5kmの目標タイム: ${runGoal}`);
+
+    const runCountEl = document.getElementById('inv-count-run');
+    const strengthCountEl = document.getElementById('inv-count-strength');
+    const speedCountEl = document.getElementById('inv-count-speed');
+    if(runCountEl) lines.push(`直近7日のEasy Run回数: ${runCountEl.textContent}`);
+    if(strengthCountEl) lines.push(`直近7日の筋トレ回数: ${strengthCountEl.textContent}`);
+    if(speedCountEl) lines.push(`直近7日のスピード練習回数: ${speedCountEl.textContent}`);
+
+    const runs = window.__allRunsSorted || [];
+    if(runs.length){
+      const last = runs[0];
+      const distKm = last.distance ? last.distance.qty.toFixed(2) : '?';
+      lines.push(`直近のラン: ${fmtDateShort(last.start)}に${distKm}km`);
+    }
+    const runHero = document.getElementById('run-hero-value');
+    if(runHero && runHero.textContent) lines.push(`5kmベストの目安: ${runHero.textContent.replace(/\s+/g,'')}`);
+
+    const conditionText = document.getElementById('condition-text');
+    const legLoad = document.getElementById('stat-legload');
+    if(conditionText) lines.push(`今日のコンディション: ${conditionText.textContent}`);
+    if(legLoad) lines.push(`脚への負荷: ${legLoad.textContent}`);
+
+    return lines.length ? lines.join('\n') : '（データがまだ十分にありません）';
+  }
+
+  function loadAiChatHistory(){
+    try{ return JSON.parse(localStorage.getItem(AI_CHAT_HISTORY_KEY) || '[]'); }catch(e){ return []; }
+  }
+  function saveAiChatHistory(history){
+    // 長くなりすぎないよう直近30件だけ保持
+    localStorage.setItem(AI_CHAT_HISTORY_KEY, JSON.stringify(history.slice(-30)));
+  }
+
+  function appendChatBubble(role, text){
+    const thread = document.getElementById('ai-thread');
+    const el = document.createElement('div');
+    if(role === 'user'){
+      el.className = 'msg user';
+      el.textContent = text;
+    } else {
+      el.className = 'ai-card';
+      el.textContent = text;
+    }
+    thread.appendChild(el);
+    thread.scrollTop = thread.scrollHeight;
+    return el;
+  }
+
+  function restoreAiChatHistory(){
+    const history = loadAiChatHistory();
+    if(!history.length) return;
+    const thread = document.getElementById('ai-thread');
+    thread.innerHTML = '';
+    history.forEach(m => appendChatBubble(m.role, m.text));
+  }
+
+  async function sendAiChatMessage(text){
+    if(!text || !text.trim()) return;
+    appendChatBubble('user', text);
+    const history = loadAiChatHistory();
+    history.push({ role:'user', text, ts: Date.now() });
+    saveAiChatHistory(history);
+
+    const loadingEl = appendChatBubble('ai', '考え中...');
+
+    try{
+      const res = await fetch(`${WORKER_URL}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, context: buildAICoachContext() })
+      });
+      if(!res.ok){
+        if(res.status === 501){
+          loadingEl.textContent = 'AI連携が未設定です（WorkerにANTHROPIC_API_KEYが設定されていません）。';
+        } else {
+          const errJson = await res.json().catch(()=>({}));
+          loadingEl.textContent = '応答の取得に失敗しました: ' + (errJson.error || res.status);
+        }
+        return;
+      }
+      const data = await res.json();
+      loadingEl.textContent = data.reply || '（応答が空でした）';
+      const history2 = loadAiChatHistory();
+      history2.push({ role:'ai', text: data.reply || '', ts: Date.now() });
+      saveAiChatHistory(history2);
+    }catch(e){
+      loadingEl.textContent = '応答の取得に失敗しました: ' + e.message;
+      console.error(e);
+    }
+  }
+
+  document.getElementById('ai-chat-send').addEventListener('click', ()=>{
+    const input = document.getElementById('ai-chat-input');
+    const text = input.value.trim();
+    if(!text) return;
+    input.value = '';
+    sendAiChatMessage(text);
+  });
+  document.getElementById('ai-chat-input').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      document.getElementById('ai-chat-send').click();
+    }
+  });
+  document.getElementById('ai-suggestions').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.sugg');
+    if(!btn) return;
+    sendAiChatMessage(btn.dataset.q);
+  });
+  restoreAiChatHistory();
+
   loadRealData();
 
   // ---- 「すべてのランを見る」モーダル ----
@@ -2080,6 +2334,18 @@
   function saveLogs(key, logs){
     localStorage.setItem(key, JSON.stringify(logs));
   }
+  // 睡眠の手入力は「夜のキー → 時間数」のオブジェクトで保持する（配列ではない）
+  function loadSleepManualMap(){
+    try{ return JSON.parse(localStorage.getItem('hc_sleep_manual_map') || '{}'); }catch(e){ return {}; }
+  }
+  function saveSleepManualMap(map){
+    localStorage.setItem('hc_sleep_manual_map', JSON.stringify(map));
+  }
+  function nightKeyForOffset(daysAgo){
+    // 「今朝」= 直近の一晩。正午を境界とする nightTotals のキー方式に合わせる。
+    const base = new Date(Date.now() - 12*60*60*1000 - daysAgo*24*60*60*1000);
+    return base.toDateString();
+  }
   function todayStr(){
     const d = new Date();
     return `${d.getMonth()+1}/${d.getDate()}`;
@@ -2112,6 +2378,7 @@
   });
   document.getElementById('open-weight').addEventListener('click', ()=>{ renderWeightRecent(); openModal('modal-weight'); });
   document.getElementById('open-strength').addEventListener('click', ()=>{ renderStrengthRecent(); openModal('modal-strength'); });
+  document.getElementById('open-sleep').addEventListener('click', ()=>{ openSleepModal(); openModal('modal-sleep'); });
 
   // ---- チップ選択の共通処理 ----
   function setupChipGroup(containerId, dataAttr){
@@ -2128,6 +2395,58 @@
     return { get: () => selected };
   }
   const strengthExerciseChip = setupChipGroup('strength-exercise-chips', 'data-ex');
+  const sleepNightChip = setupChipGroup('sleep-night-chips', 'data-offset');
+
+  // ---- 睡眠の手入力 ----
+  function openSleepModal(){
+    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const manualMap = loadSleepManualMap();
+    const existing = manualMap[key];
+    if(existing != null){
+      const h = Math.floor(existing), m = Math.round((existing - h) * 60);
+      document.getElementById('input-sleep').value = `${h}:${String(m).padStart(2,'0')}`;
+      document.getElementById('sleep-delete-btn').style.display = 'block';
+    } else {
+      document.getElementById('input-sleep').value = '';
+      document.getElementById('sleep-delete-btn').style.display = 'none';
+    }
+  }
+  document.getElementById('sleep-night-chips').addEventListener('chipchange', openSleepModal);
+
+  document.getElementById('submit-sleep').addEventListener('click', ()=>{
+    const raw = document.getElementById('input-sleep').value.trim();
+    const parts = raw.split(':').map(Number);
+    if(parts.length !== 2 || parts.some(isNaN)){
+      alert('「7:30」のように、時間:分の形式で入力してください。');
+      return;
+    }
+    const hours = parts[0] + parts[1]/60;
+    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const manualMap = loadSleepManualMap();
+    manualMap[key] = hours;
+    saveSleepManualMap(manualMap);
+
+    // 表示にすぐ反映
+    if(window.__sleepNightTotals){
+      window.__sleepNightTotals[key] = hours;
+      const allKeys = Object.keys(window.__sleepNightTotals).sort((a,b)=> new Date(a)-new Date(b));
+      if(allKeys[allKeys.length-1] === key){
+        document.getElementById('stat-sleep').textContent = fmtMinutesToHM(hours*60);
+        updateConditionAndLegLoad(hours);
+      }
+    }
+    computeHealthScores(parseInt(document.querySelector('#health-toggle button.active').dataset.days, 10));
+    closeModal('modal-sleep');
+  });
+
+  document.getElementById('sleep-delete-btn').addEventListener('click', ()=>{
+    const key = nightKeyForOffset(Number(sleepNightChip.get()));
+    const manualMap = loadSleepManualMap();
+    delete manualMap[key];
+    saveSleepManualMap(manualMap);
+    closeModal('modal-sleep');
+    loadRealData(); // 自動取得値に戻すため再計算
+  });
 
   // ---- 体重記録 ----
   function renderWeightRecent(){
