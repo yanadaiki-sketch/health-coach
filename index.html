@@ -280,6 +280,27 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-manual-laps">
+  <div class="modal-sheet">
+    <div class="modal-head"><h3>ラップを手入力</h3><button class="modal-close" data-close>✕</button></div>
+
+    <div class="goal-card" style="border-color:var(--good-dim);">
+      <div class="goal-top"><h2>AIで画像から読み取る</h2></div>
+      <label class="field-label">Mi Fitnessのワークアウト詳細画面のスクリーンショットを選択してください</label>
+      <input type="file" accept="image/*" id="screenshot-file-input" class="field-input" style="padding:10px;">
+      <button class="modal-submit" id="analyze-screenshot-btn">画像から読み取る</button>
+      <div class="modal-note" id="screenshot-analyze-status"></div>
+    </div>
+
+    <div class="section-title" style="margin:20px 0 12px; padding:0;"><h2>または手入力</h2></div>
+    <label class="field-label">上から順に1kmごとのラップタイムを入力（例: 8:48 または 8'48"）。まとめて貼り付けもOK</label>
+    <textarea class="field-input" id="manual-laps-textarea" style="min-height:160px; font-family:'JetBrains Mono',monospace;" placeholder="8:48&#10;8:03&#10;7:43&#10;7:15&#10;6:41"></textarea>
+    <button class="modal-submit" id="manual-laps-save-btn">保存</button>
+    <button class="log-del-btn" id="manual-laps-delete-btn" style="display:none; margin-top:12px; width:100%; text-align:center;">この手入力データを削除</button>
+    <div class="modal-note" style="margin-top:10px;">Mi Fitnessのスクリーンショットで「km毎のペース」の表を長押し選択→コピーし、ここに貼り付けることもできます（他の部分は含めないでください）。</div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-all-runs">
   <div class="modal-sheet">
     <div class="modal-head"><h3>すべてのラン</h3><button class="modal-close" data-close>✕</button></div>
@@ -1566,17 +1587,47 @@
     return splits;
   }
 
+  // ---- 手入力ラップの保存/取得（Apple HealthにGPSルートが無い場合の代替）----
+  function workoutKey(w){ return w.start; } // 開始時刻をキーとして使う
+  function getManualLaps(w){
+    const store = JSON.parse(localStorage.getItem('hc_manual_laps') || '{}');
+    return store[workoutKey(w)] || null;
+  }
+  function saveManualLaps(w, splits){
+    const store = JSON.parse(localStorage.getItem('hc_manual_laps') || '{}');
+    store[workoutKey(w)] = splits;
+    localStorage.setItem('hc_manual_laps', JSON.stringify(store));
+  }
+  function deleteManualLaps(w){
+    const store = JSON.parse(localStorage.getItem('hc_manual_laps') || '{}');
+    delete store[workoutKey(w)];
+    localStorage.setItem('hc_manual_laps', JSON.stringify(store));
+  }
+
   function renderSplits(w){
     const container = document.getElementById('run-splits-container');
-    if(!w.route || w.route.length < 2){
-      container.innerHTML = `<div class="modal-note">ルートデータがないためラップは計算できません（屋内ランやルート記録なしの場合）。</div>`;
+    const manual = getManualLaps(w);
+
+    if(manual && manual.length){
+      renderSplitsFromArray(container, manual, true, w);
       return;
     }
-    const splits = computeSplits(w.route);
-    if(!splits.length){
-      container.innerHTML = `<div class="modal-note">ラップを計算するにはデータが不足しています。</div>`;
-      return;
+    if(w.route && w.route.length >= 2){
+      const splits = computeSplits(w.route);
+      if(splits.length){
+        renderSplitsFromArray(container, splits, false, w);
+        return;
+      }
     }
+    // データがない場合は手入力を促す
+    container.innerHTML = `
+      <div class="modal-note">この記録にはルートデータがありません（Mi Fitness→Apple Healthではラップが自動反映されないため）。Mi Fitnessアプリで表示されているラップタイムを手入力できます。</div>
+      <button class="modal-submit" id="add-manual-laps-btn" style="background:var(--card); color:var(--good); border:1px solid var(--good-dim); margin-top:12px;">ラップを手入力する</button>
+    `;
+    document.getElementById('add-manual-laps-btn').addEventListener('click', ()=> openManualLapsModal(w));
+  }
+
+  function renderSplitsFromArray(container, splits, isManual, w){
     const paces = splits.map(s => s.partial ? (s.timeSec/60)/s.km : s.timeSec/60);
     const minPace = Math.min(...paces), maxPace = Math.max(...paces);
     const barsHtml = splits.map((s,i)=>{
@@ -1619,9 +1670,140 @@
       <div style="display:flex; gap:4px; margin-bottom:14px;">${barsHtml}</div>
       <div style="display:flex; flex-direction:column;">${rows}</div>
       ${splitNote ? `<div class="modal-note" style="margin-top:12px;">${splitNote}</div>` : ''}
-      <div class="modal-note" style="margin-top:8px; opacity:0.7;">Apple HealthのGPSルートから算出</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
+        <div class="modal-note" style="opacity:0.7; margin-top:0;">${isManual ? '手入力データ' : 'Apple HealthのGPSルートから算出'}</div>
+        ${isManual ? `<button class="log-del-btn" id="edit-manual-laps-btn">編集</button>` : ''}
+      </div>
     `;
+    if(isManual){
+      document.getElementById('edit-manual-laps-btn').addEventListener('click', ()=> openManualLapsModal(w));
+    }
   }
+
+  // ---- ラップ手入力モーダル ----
+  function openManualLapsModal(w){
+    window.__currentRunDetailWorkout = w;
+    const existing = getManualLaps(w);
+    const existingText = existing ? existing.filter(s=>!s.partial).map(s=>{
+      const m = Math.floor(s.timeSec/60), sec = Math.round(s.timeSec%60);
+      return `${m}:${String(sec).padStart(2,'0')}`;
+    }).join('\n') : '';
+    document.getElementById('manual-laps-textarea').value = existingText;
+    document.getElementById('manual-laps-delete-btn').style.display = existing ? 'block' : 'none';
+    openModal('modal-manual-laps');
+  }
+
+  // ---- スクリーンショットからAIで読み取る ----
+  document.getElementById('analyze-screenshot-btn').addEventListener('click', async ()=>{
+    const fileInput = document.getElementById('screenshot-file-input');
+    const statusEl = document.getElementById('screenshot-analyze-status');
+    const w = window.__currentRunDetailWorkout;
+    if(!w) return;
+    const file = fileInput.files[0];
+    if(!file){
+      statusEl.textContent = '画像を選択してください。';
+      return;
+    }
+    statusEl.textContent = '読み取り中...';
+    try{
+      const base64 = await new Promise((resolve, reject)=>{
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch(`${WORKER_URL}/analyze-run-screenshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64, mediaType: file.type || 'image/jpeg' })
+      });
+      if(!res.ok){
+        const errJson = await res.json().catch(()=>({}));
+        if(res.status === 501){
+          statusEl.textContent = 'AI連携が未設定です（WorkerにANTHROPIC_API_KEYが設定されていません）。';
+        } else {
+          statusEl.textContent = '読み取りに失敗しました: ' + (errJson.error || res.status);
+        }
+        return;
+      }
+      const data = await res.json();
+
+      // ラップを保存
+      if(data.splits && data.splits.length){
+        const splits = data.splits.map((s,i) => ({
+          km: s.km,
+          timeSec: s.timeSec,
+          partial: !Number.isInteger(s.km)
+        }));
+        saveManualLaps(w, splits);
+      }
+      // 心拍・ケイデンス・ストライドを保存
+      saveManualRunExtras(w, {
+        avgHr: data.avgHr, maxHr: data.maxHr,
+        avgCadence: data.avgCadence, maxCadence: data.maxCadence,
+        avgStride: data.avgStride, maxStride: data.maxStride,
+      });
+
+      statusEl.textContent = '読み取り完了！';
+      setTimeout(()=>{
+        closeModal('modal-manual-laps');
+        openRunDetail(window.__allRunsSorted.indexOf(w));
+      }, 600);
+    }catch(e){
+      statusEl.textContent = '読み取りに失敗しました: ' + e.message;
+      console.error(e);
+    }
+  });
+
+  // ---- 心拍・ケイデンス・ストライドの手入力（AI読み取り結果）保存 ----
+  function saveManualRunExtras(w, extras){
+    const store = JSON.parse(localStorage.getItem('hc_manual_run_extras') || '{}');
+    store[workoutKey(w)] = extras;
+    localStorage.setItem('hc_manual_run_extras', JSON.stringify(store));
+  }
+  function getManualRunExtras(w){
+    const store = JSON.parse(localStorage.getItem('hc_manual_run_extras') || '{}');
+    return store[workoutKey(w)] || null;
+  }
+
+  document.getElementById('manual-laps-save-btn').addEventListener('click', ()=>{
+    const w = window.__currentRunDetailWorkout;
+    if(!w) return;
+    const raw = document.getElementById('manual-laps-textarea').value.trim();
+    if(!raw){ return; }
+
+    // "8'48"" "8:48" "8分48秒" など、貼り付けテキストの中から時間らしきパターンをすべて抽出する。
+    // Mi FitnessのLive Textコピーでは "1 8'48" 2 8'03" ..." のようにまとめて1行になることが多いため、
+    // 行区切りではなく正規表現でテキスト全体から探す。
+    const timePattern = /(\d{1,2})\s*[:'分]\s*(\d{1,2})\s*["秒]?/g;
+    const splits = [];
+    let match;
+    let lastIndex = -1;
+    while((match = timePattern.exec(raw)) !== null){
+      const m = Number(match[1]), s = Number(match[2]);
+      if(isNaN(m) || isNaN(s) || s >= 60) continue;
+      const totalSec = m*60 + s;
+      if(totalSec < 120 || totalSec > 1800) continue; // 2分/km未満・30分/km超は誤認識とみなす
+      // 直前の一致と近すぎる（同じ数字を誤って2回拾った）場合はスキップ
+      if(match.index - lastIndex < 2) continue;
+      lastIndex = match.index + match[0].length;
+      splits.push({ km: splits.length + 1, timeSec: totalSec });
+    }
+    if(!splits.length){
+      alert('時間の形式が読み取れませんでした。「8:48」または「8\'48"」のような形式で入力・貼り付けしてください。');
+      return;
+    }
+    saveManualLaps(w, splits);
+    closeModal('modal-manual-laps');
+    renderSplits(w);
+  });
+  document.getElementById('manual-laps-delete-btn').addEventListener('click', ()=>{
+    const w = window.__currentRunDetailWorkout;
+    if(!w) return;
+    deleteManualLaps(w);
+    closeModal('modal-manual-laps');
+    renderSplits(w);
+  });
 
   function renderRouteShape(w){
     const el = document.getElementById('run-route-shape');
@@ -1645,16 +1827,19 @@
   function openRunDetail(idx){
     const w = window.__allRunsSorted[idx];
     if(!w) return;
+    window.__currentRunDetailWorkout = w;
     const distKm = w.distance ? w.distance.qty.toFixed(2) : '?';
     const durMin = w.duration ? Math.round(w.duration/60) : null;
     const pace = (w.distance && w.duration) ? (w.duration/60)/w.distance.qty : null;
     const paceStr = pace != null ? fmtPace(pace) : '-';
+    const manualExtras = getManualRunExtras(w) || {};
     const hrVals = w.heartRate ? w.heartRate.map(h => h.Avg ?? h.avg ?? h.qty).filter(v=>typeof v === 'number') : [];
-    const avgHr = hrVals.length ? Math.round(hrVals.reduce((a,b)=>a+b,0)/hrVals.length) : null;
-    const maxHr = hrVals.length ? Math.round(Math.max(...hrVals)) : null;
+    const avgHr = hrVals.length ? Math.round(hrVals.reduce((a,b)=>a+b,0)/hrVals.length) : (manualExtras.avgHr ?? null);
+    const maxHr = hrVals.length ? Math.round(Math.max(...hrVals)) : (manualExtras.maxHr ?? null);
     const energy = w.totalEnergy ? Math.round(w.totalEnergy.qty) : (w.activeEnergyBurned ? Math.round(w.activeEnergyBurned.qty) : null);
-    const cadence = w.stepCadence ? Math.round(w.stepCadence.qty) : null;
+    const cadence = w.stepCadence ? Math.round(w.stepCadence.qty) : (manualExtras.avgCadence ?? null);
     const elevation = w.flightsClimbed ? w.flightsClimbed.qty : null;
+    const stride = manualExtras.avgStride ?? null;
 
     document.getElementById('run-detail-title').textContent = `${fmtDateShort(w.start)} ${w.name}`;
     document.getElementById('run-detail-body').innerHTML = `
@@ -1670,7 +1855,7 @@
       </div>
       <div class="stat-grid" style="margin:0;">
         <div class="sitem"><div class="v">${cadence ?? '-'}</div><div class="l">ケイデンス</div></div>
-        <div class="sitem"><div class="v">${elevation ?? '-'}</div><div class="l">昇った階数</div></div>
+        <div class="sitem"><div class="v">${stride ?? '-'}</div><div class="l">ストライド(cm)</div></div>
         <div class="sitem"><div class="v">${classifyRunTypeGlobal(w).label}</div><div class="l">種別</div></div>
       </div>
       <div id="run-route-shape" style="margin-top:16px;"></div>
@@ -1690,6 +1875,17 @@
     const el = document.getElementById('run-hr-zones');
     if(!el) return;
     if(!w.heartRate || w.heartRate.length < 2){
+      const extras = getManualRunExtras(w);
+      if(extras && extras.avgHr != null){
+        el.innerHTML = `
+          <div class="stat-grid" style="margin:0;">
+            <div class="sitem"><div class="v">${extras.avgHr}</div><div class="l">平均心拍</div></div>
+            <div class="sitem"><div class="v">${extras.maxHr ?? '-'}</div><div class="l">最大心拍</div></div>
+          </div>
+          <div class="modal-note" style="margin-top:10px;">スクリーンショットからの読み取りのため、詳細な時系列データはなく平均・最大のみです。</div>
+        `;
+        return;
+      }
       el.innerHTML = `<div class="modal-note">心拍の時系列データがないため計算できません。</div>`;
       return;
     }
