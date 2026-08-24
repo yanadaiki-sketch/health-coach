@@ -308,7 +308,7 @@
     <div class="goal-card" style="border-color:var(--good-dim);">
       <div class="goal-top"><h2>AIで画像から読み取る</h2></div>
       <label class="field-label">Mi Fitnessのワークアウト詳細画面のスクリーンショットを選択してください</label>
-      <div class="modal-note" style="margin-bottom:10px;">「共有」機能で作られる縦に長い画像だと、縮小されて文字が読み取りにくくなることがあります。できれば「km毎のペース」の表が写っている、普通の1画面分のスクリーンショットを使ってください。</div>
+      <div class="modal-note" style="margin-bottom:10px;">ラップ・平均/最大心拍・平均/最大ケイデンス・平均/最大ストライドを1枚から同時に読み取ります。「共有」機能で作られる縦に長い画像は縮小されて読み取りにくくなることがあるので、できれば「km毎のペース」と「心拍数」がまとまって見える、普通の1〜2画面分のスクリーンショットを使ってください。</div>
       <input type="file" accept="image/*" id="screenshot-file-input" class="field-input" style="padding:10px;">
       <button class="modal-submit" id="analyze-screenshot-btn">画像から読み取る</button>
       <div class="modal-note" id="screenshot-analyze-status"></div>
@@ -395,6 +395,13 @@
       </div>
 
       <div class="section-title"><h2>今日のおすすめ</h2><span>TAP TO SELECT</span></div>
+
+      <div class="goal-card" id="ai-run-suggest-card" style="display:none;">
+        <div class="goal-top"><h2>AIのおすすめラン <span class="badge time" style="margin-left:6px;">AI</span></h2></div>
+        <div id="ai-run-suggest-body"></div>
+      </div>
+      <button class="modal-submit" id="ai-run-suggest-btn" style="background:var(--card); color:var(--good); border:1px solid var(--good-dim); margin:0 20px 20px; width:calc(100% - 40px);">🏃 AIに今日のランを聞く</button>
+
       <div class="recs" id="recs-container">
         <div class="rec" data-mins="30" data-intensity="high">
           <div class="rec-num">01</div>
@@ -2314,6 +2321,45 @@
     sendAiChatMessage(btn.dataset.q);
   });
   restoreAiChatHistory();
+
+  // ===== AIによる今日のラン提案 =====
+  document.getElementById('ai-run-suggest-btn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('ai-run-suggest-btn');
+    const card = document.getElementById('ai-run-suggest-card');
+    const body = document.getElementById('ai-run-suggest-body');
+    btn.textContent = '考え中...';
+    btn.disabled = true;
+    try{
+      const res = await fetch(`${WORKER_URL}/suggest-run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: buildAICoachContext() })
+      });
+      if(!res.ok){
+        const errJson = await res.json().catch(()=>({}));
+        const msg = res.status === 501
+          ? 'AI連携が未設定です（WorkerにANTHROPIC_API_KEYが設定されていません）。'
+          : '提案の取得に失敗しました: ' + (errJson.error || res.status);
+        body.innerHTML = `<div class="modal-note">${msg}</div>`;
+        card.style.display = 'block';
+        return;
+      }
+      const s = await res.json();
+      body.innerHTML = `
+        <div style="font-size:15px; font-weight:700; margin-bottom:4px;">${s.title || s.type || ''}</div>
+        <div style="font-size:13px; color:var(--sub); margin-bottom:10px;">${s.detail || ''}</div>
+        <div class="modal-note" style="margin:0;">${s.reason || ''}</div>
+      `;
+      card.style.display = 'block';
+    }catch(e){
+      body.innerHTML = `<div class="modal-note">提案の取得に失敗しました: ${e.message}</div>`;
+      card.style.display = 'block';
+      console.error(e);
+    } finally {
+      btn.textContent = '🏃 AIに今日のランを聞く';
+      btn.disabled = false;
+    }
+  });
 
   loadRealData();
 
