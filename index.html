@@ -485,6 +485,8 @@
       <div class="chart-card" id="weekly-digest-card">
         <div class="chart-head"><h2>週次ダイジェスト</h2><span id="weekly-digest-range"></span></div>
         <div id="weekly-digest-body"><div class="modal-note">記録が蓄積すると、先週との比較が表示されます。</div></div>
+        <button class="modal-submit" id="weekly-ai-digest-btn" style="background:var(--card); color:var(--good); border:1px solid var(--good-dim); margin-top:14px;">🤖 AIに今週を振り返ってもらう</button>
+        <div id="weekly-ai-digest-body" style="margin-top:12px; display:none;"></div>
       </div>
 
       <div class="chart-card" id="heatmap-card">
@@ -520,6 +522,17 @@
         </div>
         <div class="modal-note" id="nutrition-source-note" style="margin-top:10px;">あすけん（Apple Health経由）と連携すると自動反映されます。</div>
         <div class="unknown-note" id="nutrition-status-note">記録率が低い栄養項目は「不足」と断定せず、データ不足として扱います。現在、栄養推定にはAI連携（未設定）が必要なため、すべてデータ不足として表示しています。</div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head"><h2>データのバックアップ</h2></div>
+        <div class="modal-note" style="margin-bottom:14px;">体重・筋トレ・睡眠・目標などの記録は、このブラウザの中だけに保存されています。機種変更やブラウザのデータ消去で失われる前に、定期的にバックアップを取ることをおすすめします。</div>
+        <div style="display:flex; gap:10px;">
+          <button class="modal-submit" id="export-data-btn" style="margin-top:0;">書き出す</button>
+          <button class="modal-submit" id="import-data-btn" style="margin-top:0; background:var(--card); color:var(--good); border:1px solid var(--good-dim);">読み込む</button>
+        </div>
+        <input type="file" accept="application/json" id="import-data-file" style="display:none;">
+        <div class="modal-note" id="backup-status-note" style="margin-top:10px;"></div>
       </div>
     </section>
 
@@ -2322,6 +2335,107 @@
   });
   restoreAiChatHistory();
 
+  // ===== 週次AIダイジェスト =====
+  document.getElementById('weekly-ai-digest-btn').addEventListener('click', async ()=>{
+    const btn = document.getElementById('weekly-ai-digest-btn');
+    const body = document.getElementById('weekly-ai-digest-body');
+    if(!window.__weeklyDigestContext){
+      body.style.display = 'block';
+      body.innerHTML = `<div class="modal-note">今週はまだ記録が少なく、振り返りを作成できません。</div>`;
+      return;
+    }
+    btn.textContent = '考え中...';
+    btn.disabled = true;
+    try{
+      const res = await fetch(`${WORKER_URL}/weekly-digest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: window.__weeklyDigestContext })
+      });
+      if(!res.ok){
+        const errJson = await res.json().catch(()=>({}));
+        const msg = res.status === 501
+          ? 'AI連携が未設定です（WorkerにANTHROPIC_API_KEYが設定されていません）。'
+          : '振り返りの取得に失敗しました: ' + (errJson.error || res.status);
+        body.innerHTML = `<div class="modal-note">${msg}</div>`;
+        body.style.display = 'block';
+        return;
+      }
+      const data = await res.json();
+      body.innerHTML = `<div class="ai-card" style="max-width:100%;">${data.reply || ''}</div>`;
+      body.style.display = 'block';
+    }catch(e){
+      body.innerHTML = `<div class="modal-note">振り返りの取得に失敗しました: ${e.message}</div>`;
+      body.style.display = 'block';
+      console.error(e);
+    } finally {
+      btn.textContent = '🤖 AIに今週を振り返ってもらう';
+      btn.disabled = false;
+    }
+  });
+
+  // ===== データのバックアップ/復元 =====
+  const BACKUP_KEYS = [
+    'hc_weight_logs', 'hc_strength_logs', 'hc_waist_logs',
+    'hc_sleep_manual_map', 'hc_weight_hidden',
+    'hc_goal_weight_kg', 'hc_goal_run_time', 'hc_goal_monthly_distance_km',
+    'hc_pb_longest_km', 'hc_pb_fastest_km_sec', 'hc_pb_total_km', 'hc_pb_min_weight_kg',
+    'hc_manual_laps', 'hc_manual_run_extras', 'hc_ai_chat_history',
+  ];
+
+  document.getElementById('export-data-btn').addEventListener('click', ()=>{
+    const backup = { exportedAt: new Date().toISOString(), data: {} };
+    BACKUP_KEYS.forEach(k=>{
+      const v = localStorage.getItem(k);
+      if(v != null) backup.data[k] = v;
+    });
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `health-coach-backup-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    document.getElementById('backup-status-note').textContent = 'バックアップファイルを書き出しました。';
+  });
+
+  document.getElementById('import-data-btn').addEventListener('click', ()=>{
+    document.getElementById('import-data-file').click();
+  });
+  document.getElementById('import-data-file').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const statusEl = document.getElementById('backup-status-note');
+    const reader = new FileReader();
+    reader.onload = (ev)=>{
+      try{
+        const parsed = JSON.parse(ev.target.result);
+        const data = parsed.data || parsed; // 古い形式（dataでラップされていない）にも一応対応
+        if(!confirm('現在のこの端末の記録は上書きされます。バックアップから復元してよろしいですか？')){
+          statusEl.textContent = '復元をキャンセルしました。';
+          return;
+        }
+        let restoredCount = 0;
+        BACKUP_KEYS.forEach(k=>{
+          if(data[k] != null){
+            localStorage.setItem(k, data[k]);
+            restoredCount++;
+          }
+        });
+        statusEl.textContent = `${restoredCount}項目を復元しました。画面を再読み込みします...`;
+        setTimeout(()=> location.reload(), 1200);
+      }catch(err){
+        statusEl.textContent = '読み込みに失敗しました。正しいバックアップファイルか確認してください。';
+        console.error(err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // 同じファイルを連続選択できるようにリセット
+  });
+
   // ===== AIによる今日のラン提案 =====
   document.getElementById('ai-run-suggest-btn').addEventListener('click', async ()=>{
     const btn = document.getElementById('ai-run-suggest-btn');
@@ -2939,10 +3053,14 @@
     const thisWeekWeights = weightLogs.filter(p=>p.date>=weekAgo);
     const weightDiff = thisWeekWeights.length >= 1 && weightLogs.length ? (thisWeekWeights[thisWeekWeights.length-1].kg - (weightLogs.find(p=>p.date<weekAgo)?.kg ?? thisWeekWeights[0].kg)) : null;
 
-    const mealCountThis = loadLogs('hc_meal_logs').filter(l=>l.ts && new Date(l.ts)>=weekAgo).length;
+    const sleepEntries = Object.entries(window.__sleepNightTotals || {}).filter(([k]) => new Date(k) >= weekAgo);
+    const avgSleep = sleepEntries.length ? sleepEntries.reduce((s,[,h])=>s+h,0)/sleepEntries.length : null;
 
-    if(thisWeekWorkouts.length === 0 && mealCountThis === 0 && !thisWeekWeights.length){
+    const strengthCountThis = loadLogs('hc_strength_logs').filter(l => new Date(l.ts) >= weekAgo).length;
+
+    if(thisWeekWorkouts.length === 0 && strengthCountThis === 0 && !thisWeekWeights.length && !sleepEntries.length){
       body.innerHTML = `<div class="modal-note">今週はまだ記録がありません。</div>`;
+      window.__weeklyDigestContext = null;
       return;
     }
 
@@ -2953,7 +3071,7 @@
       <div class="stat-grid" style="margin:0 0 12px;">
         <div class="sitem"><div class="v">${thisWeekWorkouts.length}回</div><div class="l">運動</div></div>
         <div class="sitem"><div class="v">${thisDist.toFixed(1)}km</div><div class="l">走行距離</div></div>
-        <div class="sitem"><div class="v">${mealCountThis}件</div><div class="l">食事記録</div></div>
+        <div class="sitem"><div class="v">${avgSleep != null ? fmtMinutesToHM(avgSleep*60) : '-'}</div><div class="l">平均睡眠</div></div>
       </div>
       <div class="modal-note">
         ${workoutDiff > 0 ? `先週より運動回数が${workoutDiff}回増えました。` : workoutDiff < 0 ? `先週より運動回数が${Math.abs(workoutDiff)}回減っています。` : '運動回数は先週と同じです。'}
@@ -2961,6 +3079,17 @@
         ${weightDiff != null ? (weightDiff < -0.1 ? ` 体重は${Math.abs(weightDiff).toFixed(1)}kg減少しました。` : weightDiff > 0.1 ? ` 体重は${weightDiff.toFixed(1)}kg増加しました。` : ' 体重はほぼ横ばいでした。') : ''}
       </div>
     `;
+
+    // AIダイジェスト用にコンテキストを保持
+    const lines = [];
+    lines.push(`今週の運動回数: ${thisWeekWorkouts.length}回（先週は${lastWeekWorkouts.length}回）`);
+    lines.push(`今週の走行距離: ${thisDist.toFixed(1)}km（先週は${lastDist.toFixed(1)}km）`);
+    lines.push(`今週の筋トレ回数: ${strengthCountThis}回`);
+    if(avgSleep != null) lines.push(`今週の平均睡眠時間: 約${avgSleep.toFixed(1)}時間`);
+    if(weightDiff != null) lines.push(`体重の変化: ${weightDiff>=0?'+':''}${weightDiff.toFixed(1)}kg`);
+    const weightGoal = localStorage.getItem('hc_goal_weight_kg');
+    if(weightGoal) lines.push(`体重目標: ${weightGoal}kg`);
+    window.__weeklyDigestContext = lines.join('\n');
   }
 
   document.querySelector('.bottom-nav [data-view="health"]').addEventListener('click', ()=>{
